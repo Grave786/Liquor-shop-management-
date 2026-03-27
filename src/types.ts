@@ -13,6 +13,8 @@ export interface Outlet {
   name: string;
   location: string;
   managerId?: string;
+  licenseNumber?: string;
+  licenseValidUntil?: string;
 }
 
 export interface Product {

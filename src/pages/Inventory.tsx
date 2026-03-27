@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Product, InventoryItem, Outlet } from '../types';
 import { CATEGORIES } from '../constants';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -20,6 +21,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const Inventory: React.FC = () => {
   const { profile, isAdmin, isManager } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const outletIdParam = (searchParams.get('outletId') || '').trim();
   const [products, setProducts] = useState<Product[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
@@ -47,10 +50,19 @@ const Inventory: React.FC = () => {
     outletId: ''
   });
 
+  const getDefaultOutletId = () => {
+    if (isAdmin) return outletIdParam || profile?.outletId || '';
+    return profile?.outletId || outlets[0]?.id || '';
+  };
+
   const fetchData = async () => {
     try {
-      const outletId = profile?.outletId;
-      const invUrl = isAdmin ? '/api/inventory' : `/api/inventory?outletId=${outletId}`;
+      const profileOutletId = profile?.outletId || '';
+      const effectiveOutletId = isAdmin ? outletIdParam : profileOutletId;
+
+      const invUrl = effectiveOutletId
+        ? `/api/inventory?outletId=${encodeURIComponent(effectiveOutletId)}`
+        : '/api/inventory';
 
       const [prodRes, invRes, outRes] = await Promise.all([
         apiFetch('/api/products'),
@@ -71,14 +83,15 @@ const Inventory: React.FC = () => {
   useEffect(() => {
     if (profile) {
       fetchData();
-      setFormData(prev => ({ ...prev, outletId: profile.outletId || '' }));
-      setStockFormData(prev => ({ ...prev, outletId: profile.outletId || '' }));
+      const defaultOutletId = getDefaultOutletId();
+      setFormData(prev => ({ ...prev, outletId: defaultOutletId }));
+      setStockFormData(prev => ({ ...prev, outletId: defaultOutletId }));
     }
-  }, [isAdmin, profile]);
+  }, [isAdmin, outletIdParam, profile]);
 
   const handleOpenStockModal = (product: Product) => {
     setSelectedProductForStock(product);
-    const currentOutletId = profile?.outletId || outlets[0]?.id || '';
+    const currentOutletId = (isAdmin ? outletIdParam : (profile?.outletId || '')) || outlets[0]?.id || '';
     const currentStock = inventory.find(i => i.productId === product.id && i.outletId === currentOutletId)?.quantity || 0;
     setStockFormData({
       quantity: currentStock,
@@ -123,15 +136,39 @@ const Inventory: React.FC = () => {
         const newProduct = await res.json();
         
         // Initialize inventory for all outlets
-        for (const outlet of outlets) {
-          await apiFetch('/api/inventory', {
-            method: 'POST',
-            body: JSON.stringify({
-              productId: newProduct.id,
-              outletId: outlet.id,
-              quantity: outlet.id === formData.outletId ? formData.initialQuantity : 0
-            })
-          });
+        let outletsToInit = outlets;
+        if (outletsToInit.length === 0) {
+          const outRes = await apiFetch('/api/outlets');
+          if (outRes.ok) {
+            outletsToInit = await outRes.json();
+            setOutlets(outletsToInit);
+          }
+        }
+
+        const initialOutletId = formData.outletId || getDefaultOutletId();
+
+        if (outletsToInit.length === 0) {
+          if (initialOutletId) {
+            await apiFetch('/api/inventory', {
+              method: 'POST',
+              body: JSON.stringify({
+                productId: newProduct.id,
+                outletId: initialOutletId,
+                quantity: formData.initialQuantity
+              })
+            });
+          }
+        } else {
+          for (const outlet of outletsToInit) {
+            await apiFetch('/api/inventory', {
+              method: 'POST',
+              body: JSON.stringify({
+                productId: newProduct.id,
+                outletId: outlet.id,
+                quantity: outlet.id === initialOutletId ? formData.initialQuantity : 0
+              })
+            });
+          }
         }
       }
       setIsModalOpen(false);
@@ -143,7 +180,7 @@ const Inventory: React.FC = () => {
         unitPrice: 0, 
         description: '',
         initialQuantity: 0,
-        outletId: profile?.outletId || ''
+        outletId: getDefaultOutletId()
       });
       fetchData();
     } catch (err) {
@@ -163,6 +200,11 @@ const Inventory: React.FC = () => {
     (selectedCategory === 'All' || p.category === selectedCategory)
   );
 
+  const selectedOutletName =
+    isAdmin && outletIdParam
+      ? (outlets.find(o => o.id === outletIdParam)?.name || 'Selected Outlet')
+      : 'All Outlets';
+
   const getStockForProduct = (productId: string) => {
     const items = inventory.filter(i => i.productId === productId);
     return items.reduce((sum, i) => sum + i.quantity, 0);
@@ -173,29 +215,53 @@ const Inventory: React.FC = () => {
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Inventory</h1>
-          <p className="text-gray-500 mt-1">Manage your product catalog and track stock levels.</p>
+          <p className="text-gray-500 mt-1">
+            Manage your product catalog and track stock levels.
+            {isAdmin && <span className="ml-2 text-gray-400">• {selectedOutletName}</span>}
+          </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => {
-              setEditingProduct(null);
-              setFormData({ 
-                name: '', 
-                category: CATEGORIES[0], 
-                sku: '', 
-                unitPrice: 0, 
-                description: '',
-                initialQuantity: 0,
-                outletId: profile?.outletId || ''
-              });
-              setIsModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-          >
-            <Plus size={20} />
-            Add Product
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <select
+              className="text-sm border-gray-200 rounded-xl bg-gray-50 px-4 py-2.5 focus:ring-blue-500 focus:border-blue-500"
+              value={outletIdParam}
+              onChange={(e) => {
+                const next = e.target.value;
+                const nextParams = new URLSearchParams(searchParams);
+                if (!next) nextParams.delete('outletId');
+                else nextParams.set('outletId', next);
+                setSearchParams(nextParams);
+              }}
+            >
+              <option value="">All Outlets</option>
+              {outlets.map(o => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+          )}
+
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setEditingProduct(null);
+                setFormData({ 
+                  name: '', 
+                  category: CATEGORIES[0], 
+                  sku: '', 
+                  unitPrice: 0, 
+                  description: '',
+                  initialQuantity: 0,
+                  outletId: getDefaultOutletId()
+                });
+                setIsModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+            >
+              <Plus size={20} />
+              Add Product
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Filters */}
@@ -423,6 +489,7 @@ const Inventory: React.FC = () => {
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-gray-700">Target Outlet</label>
                         <select
+                          required={isAdmin}
                           className="w-full px-4 py-3 bg-white border-none rounded-xl focus:ring-2 focus:ring-blue-500"
                           value={formData.outletId}
                           onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}

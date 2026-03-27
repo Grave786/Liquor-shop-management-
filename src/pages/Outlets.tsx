@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Outlet, UserProfile } from '../types';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   MapPin, 
@@ -14,9 +15,11 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { differenceInCalendarDays, format } from 'date-fns';
 
 const Outlets: React.FC = () => {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,7 +29,9 @@ const Outlets: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     location: '',
-    managerId: ''
+    managerId: '',
+    licenseNumber: '',
+    licenseValidUntil: ''
   });
 
   const fetchData = async () => {
@@ -52,20 +57,28 @@ const Outlets: React.FC = () => {
   const handleSaveOutlet = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        name: formData.name,
+        location: formData.location,
+        managerId: formData.managerId || null,
+        licenseNumber: formData.licenseNumber || null,
+        licenseValidUntil: formData.licenseValidUntil ? new Date(formData.licenseValidUntil).toISOString() : null
+      };
+
       if (editingOutlet) {
         await apiFetch(`/api/outlets/${editingOutlet.id}`, {
           method: 'PATCH',
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
       } else {
         await apiFetch('/api/outlets', {
           method: 'POST',
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
       }
       setIsModalOpen(false);
       setEditingOutlet(null);
-      setFormData({ name: '', location: '', managerId: '' });
+      setFormData({ name: '', location: '', managerId: '', licenseNumber: '', licenseValidUntil: '' });
       fetchData();
     } catch (err) {
       console.error('Error saving outlet:', err);
@@ -91,7 +104,7 @@ const Outlets: React.FC = () => {
         <button
           onClick={() => {
             setEditingOutlet(null);
-            setFormData({ name: '', location: '', managerId: '' });
+            setFormData({ name: '', location: '', managerId: '', licenseNumber: '', licenseValidUntil: '' });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
@@ -104,6 +117,12 @@ const Outlets: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {outlets.map((outlet, i) => {
           const manager = users.find(u => u.uid === outlet.managerId);
+          const daysLeft = outlet.licenseValidUntil
+            ? differenceInCalendarDays(new Date(outlet.licenseValidUntil), new Date())
+            : null;
+          const licenseUntilLabel = outlet.licenseValidUntil
+            ? format(new Date(outlet.licenseValidUntil), 'MMM dd, yyyy')
+            : null;
 
           return (
             <motion.div
@@ -126,7 +145,13 @@ const Outlets: React.FC = () => {
                       <button
                         onClick={() => {
                           setEditingOutlet(outlet);
-                          setFormData({ name: outlet.name, location: outlet.location, managerId: outlet.managerId || '' });
+                          setFormData({
+                            name: outlet.name,
+                            location: outlet.location,
+                            managerId: outlet.managerId || '',
+                            licenseNumber: outlet.licenseNumber || '',
+                            licenseValidUntil: toDateInputValue(outlet.licenseValidUntil)
+                          });
                           setIsModalOpen(true);
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
@@ -154,13 +179,34 @@ const Outlets: React.FC = () => {
                     <User size={16} className="text-blue-500" />
                     <span>{manager?.displayName || manager?.email || 'No Manager Assigned'}</span>
                   </div>
+                  <div className="flex items-center gap-3 text-sm text-gray-500">
+                    <span className="w-4 h-4 rounded bg-blue-50 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                      L
+                    </span>
+                    {!outlet.licenseValidUntil ? (
+                      <span>License not set</span>
+                    ) : daysLeft !== null && daysLeft < 0 ? (
+                      <span className="text-red-600 font-medium">
+                        License expired (until {licenseUntilLabel})
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700 font-medium">
+                        {daysLeft} day(s) left (until {licenseUntilLabel})
+                        {outlet.licenseNumber ? ` • #${outlet.licenseNumber}` : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   Active Location
                 </span>
-                <button className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
+                  className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all"
+                >
                   View Inventory <ChevronRight size={14} />
                 </button>
               </div>
@@ -235,6 +281,30 @@ const Outlets: React.FC = () => {
                     </select>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">License Number (optional)</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                      value={formData.licenseNumber}
+                      onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                      placeholder="e.g. LIC-2026-0001"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">License Valid Until</label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                      value={formData.licenseValidUntil}
+                      onChange={(e) => setFormData({ ...formData, licenseValidUntil: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-400 font-medium">
+                      Used to calculate how many days remain to sell alcohol for this outlet.
+                    </p>
+                  </div>
+
                   <div className="pt-4 flex gap-4">
                     <button
                       type="button"
@@ -261,3 +331,12 @@ const Outlets: React.FC = () => {
 };
 
 export default Outlets;
+
+function toDateInputValue(value?: string) {
+  if (!value) return '';
+  try {
+    return format(new Date(value), 'yyyy-MM-dd');
+  } catch {
+    return '';
+  }
+}

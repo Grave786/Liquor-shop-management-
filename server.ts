@@ -19,33 +19,30 @@ app.use(express.json());
 // MongoDB Connection
 const getMongoUri = () => {
   const envUri = (process.env.MONGO_URI || '').trim().replace(/^["']|["']$/g, '');
-  const fallbackUri = 'mongodb+srv://yash:yash123@cluster0.1tuthpb.mongodb.net/shop_management?retryWrites=true&w=majority&appName=Cluster0';
-  
-  console.log('Environment MONGO_URI exists:', !!process.env.MONGO_URI);
-  if (process.env.MONGO_URI) {
-    console.log('Environment MONGO_URI length:', process.env.MONGO_URI.length);
-    console.log('Environment MONGO_URI starts with:', process.env.MONGO_URI.trim().substring(0, 15));
+
+  if (!envUri) {
+    throw new Error('Missing MONGO_URI. Set it in your .env file.');
   }
 
   if (envUri.startsWith('mongodb://') || envUri.startsWith('mongodb+srv://')) {
-    console.log('Using MONGO_URI from environment.');
     return envUri;
   }
-  
-  console.warn('Invalid or missing MONGO_URI in environment, using fallback.');
-  return fallbackUri;
+
+  throw new Error('Invalid MONGO_URI. It must start with mongodb:// or mongodb+srv://');
 };
 
-const MONGO_URI = getMongoUri();
+let MONGO_URI = '';
+try {
+  MONGO_URI = getMongoUri();
+} catch (err: any) {
+  console.error(err?.message || 'Invalid MongoDB configuration.');
+  process.exit(1);
+}
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => {
     console.error('MongoDB connection error:', err);
-    console.error('Attempted URI starts with:', MONGO_URI.substring(0, 20) + '...');
-    if (err.name === 'MongoParseError') {
-      console.error('Full error details:', JSON.stringify(err, null, 2));
-    }
   });
 
 // --- Schemas ---
@@ -61,7 +58,9 @@ const userSchema = new mongoose.Schema({
 const outletSchema = new mongoose.Schema({
   name: { type: String, required: true },
   location: { type: String, required: true },
-  managerId: { type: String }
+  managerId: { type: String },
+  licenseNumber: { type: String },
+  licenseValidUntil: { type: Date }
 });
 
 const productSchema = new mongoose.Schema({
@@ -256,7 +255,14 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
 app.get('/api/outlets', authenticateToken, async (req, res) => {
   try {
     const outlets = await Outlet.find();
-    res.json(outlets.map(o => ({ id: o._id, name: o.name, location: o.location, managerId: o.managerId })));
+    res.json(outlets.map(o => ({
+      id: o._id,
+      name: o.name,
+      location: o.location,
+      managerId: o.managerId,
+      licenseNumber: (o as any).licenseNumber,
+      licenseValidUntil: (o as any).licenseValidUntil
+    })));
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -266,7 +272,14 @@ app.post('/api/outlets', authenticateToken, async (req, res) => {
   try {
     const outlet = new Outlet(req.body);
     await outlet.save();
-    res.status(201).json({ id: outlet._id, name: outlet.name, location: outlet.location, managerId: outlet.managerId });
+    res.status(201).json({
+      id: outlet._id,
+      name: outlet.name,
+      location: outlet.location,
+      managerId: outlet.managerId,
+      licenseNumber: (outlet as any).licenseNumber,
+      licenseValidUntil: (outlet as any).licenseValidUntil
+    });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
   }
@@ -276,7 +289,14 @@ app.patch('/api/outlets/:id', authenticateToken, async (req, res) => {
   try {
     const outlet = await Outlet.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
-    res.json({ id: outlet._id, name: outlet.name, location: outlet.location, managerId: outlet.managerId });
+    res.json({
+      id: outlet._id,
+      name: outlet.name,
+      location: outlet.location,
+      managerId: outlet.managerId,
+      licenseNumber: (outlet as any).licenseNumber,
+      licenseValidUntil: (outlet as any).licenseValidUntil
+    });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
   }
@@ -371,10 +391,37 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/sales', authenticateToken, async (req, res) => {
+app.post('/api/sales', authenticateToken, async (req: any, res: any) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
+    const saleOutletId = req.body?.outletId;
+    if (!saleOutletId) {
+      throw new Error('outletId is required');
+    }
+
+    // Enforce outlet assignment for non-admin users
+    if (!['super_admin', 'admin'].includes(req.user.role)) {
+      const actingUser = await User.findById(req.user.id).select('outletId').session(session);
+      if (!actingUser?.outletId) {
+        return res.status(403).json({ message: 'User is not assigned to an outlet' });
+      }
+      if (actingUser.outletId !== saleOutletId) {
+        return res.status(403).json({ message: 'Unauthorized outlet for this sale' });
+      }
+    }
+
+    // Block sales for expired licenses (user/manager/terminal)
+    const outlet = await Outlet.findById(saleOutletId).select('licenseValidUntil').session(session);
+    const licenseValidUntil = (outlet as any)?.licenseValidUntil as Date | undefined;
+    if (
+      licenseValidUntil &&
+      licenseValidUntil.getTime() < Date.now() &&
+      ['manager', 'user', 'terminal'].includes(req.user.role)
+    ) {
+      return res.status(403).json({ message: 'Outlet license expired. Sales are disabled for this outlet.' });
+    }
+
     const sale = new Sale(req.body);
     await sale.save({ session });
 

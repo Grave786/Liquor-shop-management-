@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
-import { Sale, InventoryItem, Product } from '../types';
+import { Sale, InventoryItem, Product, Outlet } from '../types';
+import { useSearchParams } from 'react-router-dom';
 import { 
   TrendingUp, 
   Package, 
@@ -27,27 +28,36 @@ import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { profile, isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const outletIdParam = (searchParams.get('outletId') || '').trim();
   const [sales, setSales] = useState<Sale[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const outletId = profile?.outletId;
-        const salesUrl = isAdmin ? '/api/sales' : `/api/sales?outletId=${outletId}`;
-        const invUrl = isAdmin ? '/api/inventory' : `/api/inventory?outletId=${outletId}`;
+        const effectiveOutletId = isAdmin ? outletIdParam : (profile?.outletId || '');
+        const salesUrl = effectiveOutletId
+          ? `/api/sales?outletId=${encodeURIComponent(effectiveOutletId)}`
+          : '/api/sales';
+        const invUrl = effectiveOutletId
+          ? `/api/inventory?outletId=${encodeURIComponent(effectiveOutletId)}`
+          : '/api/inventory';
 
-        const [salesRes, invRes, prodRes] = await Promise.all([
+        const [salesRes, invRes, prodRes, outRes] = await Promise.all([
           apiFetch(salesUrl),
           apiFetch(invUrl),
-          apiFetch('/api/products')
+          apiFetch('/api/products'),
+          isAdmin ? apiFetch('/api/outlets') : Promise.resolve(null as any)
         ]);
 
         if (salesRes.ok) setSales(await salesRes.json());
         if (invRes.ok) setInventory(await invRes.json());
         if (prodRes.ok) setProducts(await prodRes.json());
+        if (outRes?.ok) setOutlets(await outRes.json());
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
       } finally {
@@ -58,7 +68,7 @@ const Dashboard: React.FC = () => {
     if (profile) {
       fetchData();
     }
-  }, [isAdmin, profile]);
+  }, [isAdmin, outletIdParam, profile]);
 
   const totalSalesAmount = sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
   const lowStockItems = inventory.filter(item => item.quantity < 10);
@@ -84,6 +94,11 @@ const Dashboard: React.FC = () => {
     { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-indigo-500', trend: '+0.5%', isUp: true },
   ];
 
+  const selectedOutletName =
+    isAdmin && outletIdParam
+      ? (outlets.find(o => o.id === outletIdParam)?.name || 'Selected Outlet')
+      : 'All Outlets';
+
   if (loading) {
     return <div className="animate-pulse space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -98,14 +113,44 @@ const Dashboard: React.FC = () => {
       <header className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back, {profile?.displayName || 'User'}. Here's what's happening today.</p>
-        </div>
-        <div className="text-right hidden sm:block">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Session</p>
-          <p className="text-sm font-medium text-gray-700 flex items-center gap-2 justify-end mt-1">
-            <Clock size={16} className="text-blue-500" />
-            {format(new Date(), 'EEEE, MMMM do')}
+          <p className="text-gray-500 mt-1">
+            Welcome back, {profile?.displayName || 'User'}. Here's what's happening today.
+            {isAdmin && (
+              <span className="ml-2 text-gray-400">
+                • {selectedOutletName}
+              </span>
+            )}
           </p>
+        </div>
+        <div className="text-right hidden sm:block space-y-3">
+          {isAdmin && (
+            <div className="flex items-center justify-end gap-3">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Outlet View</p>
+              <select
+                className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+                value={outletIdParam}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const nextParams = new URLSearchParams(searchParams);
+                  if (!next) nextParams.delete('outletId');
+                  else nextParams.set('outletId', next);
+                  setSearchParams(nextParams);
+                }}
+              >
+                <option value="">All Outlets</option>
+                {outlets.map(o => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Session</p>
+            <p className="text-sm font-medium text-gray-700 flex items-center gap-2 justify-end mt-1">
+              <Clock size={16} className="text-blue-500" />
+              {format(new Date(), 'EEEE, MMMM do')}
+            </p>
+          </div>
         </div>
       </header>
 

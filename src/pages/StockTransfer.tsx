@@ -87,12 +87,13 @@ const StockTransfers: React.FC = () => {
 
   const handleCompleteTransfer = async (transfer: StockTransfer) => {
     try {
-      const res = await apiFetch(`/api/transfers/${transfer.id}/complete`, {
-        method: 'POST'
+      const res = await apiFetch(`/api/transfers/${transfer.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'completed' })
       });
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to complete transfer');
+        const message = await readApiError(res);
+        throw new Error(message || 'Failed to complete transfer');
       }
       fetchData();
     } catch (err: any) {
@@ -102,8 +103,20 @@ const StockTransfers: React.FC = () => {
   };
 
   const handleCancelTransfer = async (id: string) => {
-    await apiFetch(`/api/transfers/${id}/cancel`, { method: 'POST' });
-    fetchData();
+    try {
+      const res = await apiFetch(`/api/transfers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'cancelled' })
+      });
+      if (!res.ok) {
+        const message = await readApiError(res);
+        throw new Error(message || 'Failed to cancel transfer');
+      }
+      fetchData();
+    } catch (err: any) {
+      console.error('Transfer cancel error:', err);
+      alert(err.message || 'Failed to cancel transfer');
+    }
   };
 
   return (
@@ -319,4 +332,19 @@ export default StockTransfers;
 
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
+}
+
+async function readApiError(res: Response) {
+  try {
+    const text = await res.text();
+    if (!text) return `${res.status} ${res.statusText}`.trim();
+    try {
+      const parsed = JSON.parse(text);
+      return parsed?.message || text;
+    } catch {
+      return text;
+    }
+  } catch {
+    return `${res.status} ${res.statusText}`.trim();
+  }
 }
