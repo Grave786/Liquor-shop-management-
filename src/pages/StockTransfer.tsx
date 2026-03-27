@@ -12,6 +12,7 @@ import {
   AlertCircle,
   ArrowLeftRight,
   ChevronRight,
+  Trash2,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -119,6 +120,22 @@ const StockTransfers: React.FC = () => {
     }
   };
 
+  const handleDeleteTransfer = async (id: string) => {
+    if (!window.confirm('Delete this transfer history entry? This will not revert inventory changes.')) return;
+
+    try {
+      const res = await apiFetch(`/api/transfers/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const message = await readApiError(res);
+        throw new Error(message || 'Failed to delete transfer');
+      }
+      fetchData();
+    } catch (err: any) {
+      console.error('Transfer delete error:', err);
+      alert(err.message || 'Failed to delete transfer');
+    }
+  };
+
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-center">
@@ -190,7 +207,7 @@ const StockTransfers: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {transfer.status === 'pending' && (
+                      {transfer.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleCompleteTransfer(transfer)}
@@ -205,6 +222,23 @@ const StockTransfers: React.FC = () => {
                             title="Cancel Transfer"
                           >
                             <XCircle size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTransfer(transfer.id)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                            title="Delete History"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleDeleteTransfer(transfer.id)}
+                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                            title="Delete History"
+                          >
+                            <Trash2 size={18} />
                           </button>
                         </div>
                       )}

@@ -45,6 +45,10 @@ export interface Sale {
   outletId: string;
   userId: string;
   items: SaleItem[];
+  subtotal?: number;
+  discountType?: 'amount' | 'percent';
+  discountValue?: number;
+  discountAmount?: number;
   totalAmount: number;
   timestamp: string;
 }

@@ -86,6 +86,10 @@ const saleSchema = new mongoose.Schema({
     quantity: { type: Number, required: true },
     price: { type: Number, required: true }
   }],
+  subtotal: { type: Number },
+  discountType: { type: String, enum: ['amount', 'percent'] },
+  discountValue: { type: Number },
+  discountAmount: { type: Number },
   totalAmount: { type: Number, required: true },
   timestamp: { type: Date, default: Date.now }
 });
@@ -175,8 +179,19 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
 // --- API Routes ---
 
 // Users
-app.get('/api/users', authenticateToken, async (req, res) => {
-  const users = await User.find({}, '-password');
+app.get('/api/users', authenticateToken, async (req: any, res: any) => {
+  const role = req.user?.role;
+  if (!['super_admin', 'admin'].includes(role)) {
+    return res.status(403).json({ message: 'Unauthorized to view users' });
+  }
+
+  const filter: any = {};
+  // Hide super admins from admin view ("admin activity")
+  if (role === 'admin') {
+    filter.role = { $ne: 'super_admin' };
+  }
+
+  const users = await User.find(filter, '-password');
   res.json(users.map(u => ({ uid: u._id, email: u.email, role: u.role, displayName: u.displayName, outletId: u.outletId })));
 });
 
@@ -195,6 +210,11 @@ app.post('/api/users', authenticateToken, async (req: any, res) => {
       }
     } else {
       return res.status(403).json({ message: 'Unauthorized to create users' });
+    }
+
+    // Only super_admin can create an admin user
+    if (role === 'admin' && creatorRole !== 'super_admin') {
+      return res.status(403).json({ message: 'Only super admins can create admins' });
     }
 
     const existingUser = await User.findOne({ email });
@@ -223,6 +243,9 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
     if (!targetUser) return res.status(404).json({ message: 'User not found' });
 
     const newRole = req.body.role;
+    if (newRole === 'admin' && creatorRole !== 'super_admin') {
+      return res.status(403).json({ message: 'Only super admins can promote users to admin' });
+    }
 
     // Hierarchical validation for updates
     if (creatorRole === 'super_admin') {
@@ -270,8 +293,28 @@ app.get('/api/outlets', authenticateToken, async (req, res) => {
 
 app.post('/api/outlets', authenticateToken, async (req, res) => {
   try {
+    if (!['super_admin', 'admin'].includes((req as any).user?.role)) {
+      return res.status(403).json({ message: 'Unauthorized to create outlets' });
+    }
+
+    const managerId = typeof req.body?.managerId === 'string' ? req.body.managerId.trim() : '';
+    if (managerId) {
+      const alreadyAssigned = await Outlet.findOne({ managerId });
+      if (alreadyAssigned) {
+        return res.status(409).json({ message: 'This manager is already assigned to another outlet' });
+      }
+      req.body.managerId = managerId;
+    } else {
+      req.body.managerId = null;
+    }
+
     const outlet = new Outlet(req.body);
     await outlet.save();
+
+    if (managerId) {
+      await User.findByIdAndUpdate(managerId, { outletId: String(outlet._id) });
+    }
+
     res.status(201).json({
       id: outlet._id,
       name: outlet.name,
@@ -287,8 +330,43 @@ app.post('/api/outlets', authenticateToken, async (req, res) => {
 
 app.patch('/api/outlets/:id', authenticateToken, async (req, res) => {
   try {
-    const outlet = await Outlet.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!['super_admin', 'admin'].includes((req as any).user?.role)) {
+      return res.status(403).json({ message: 'Unauthorized to update outlets' });
+    }
+
+    const outlet = await Outlet.findById(req.params.id);
     if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
+
+    const oldManagerId = (outlet as any).managerId as string | undefined;
+    const nextManagerIdRaw = req.body?.managerId;
+    const nextManagerId = typeof nextManagerIdRaw === 'string' ? nextManagerIdRaw.trim() : '';
+    const managerIdToSet = nextManagerId || null;
+
+    if (managerIdToSet && managerIdToSet !== oldManagerId) {
+      const alreadyAssigned = await Outlet.findOne({ managerId: managerIdToSet, _id: { $ne: outlet._id } });
+      if (alreadyAssigned) {
+        return res.status(409).json({ message: 'This manager is already assigned to another outlet' });
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'name')) (outlet as any).name = req.body.name;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'location')) (outlet as any).location = req.body.location;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'managerId')) (outlet as any).managerId = managerIdToSet;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'licenseNumber')) (outlet as any).licenseNumber = req.body.licenseNumber || null;
+    if (Object.prototype.hasOwnProperty.call(req.body, 'licenseValidUntil')) (outlet as any).licenseValidUntil = req.body.licenseValidUntil || null;
+
+    await outlet.save();
+
+    if (Object.prototype.hasOwnProperty.call(req.body, 'managerId')) {
+      const outletIdString = String(outlet._id);
+      if (oldManagerId && oldManagerId !== managerIdToSet) {
+        await User.updateOne({ _id: oldManagerId, outletId: outletIdString }, { $unset: { outletId: '' } });
+      }
+      if (managerIdToSet) {
+        await User.findByIdAndUpdate(managerIdToSet, { outletId: outletIdString });
+      }
+    }
+
     res.json({
       id: outlet._id,
       name: outlet.name,
@@ -304,6 +382,10 @@ app.patch('/api/outlets/:id', authenticateToken, async (req, res) => {
 
 app.delete('/api/outlets/:id', authenticateToken, async (req, res) => {
   try {
+    if (!['super_admin', 'admin'].includes((req as any).user?.role)) {
+      return res.status(403).json({ message: 'Unauthorized to delete outlets' });
+    }
+
     await Outlet.findByIdAndDelete(req.params.id);
     res.status(204).send();
   } catch (err: any) {
@@ -385,7 +467,18 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
     const { outletId } = req.query;
     const filter = outletId ? { outletId } : {};
     const sales = await Sale.find(filter).sort({ timestamp: -1 });
-    res.json(sales.map(s => ({ id: s._id, outletId: s.outletId, userId: s.userId, items: s.items, totalAmount: s.totalAmount, timestamp: s.timestamp })));
+    res.json(sales.map(s => ({
+      id: s._id,
+      outletId: s.outletId,
+      userId: s.userId,
+      items: s.items,
+      subtotal: (s as any).subtotal,
+      discountType: (s as any).discountType,
+      discountValue: (s as any).discountValue,
+      discountAmount: (s as any).discountAmount,
+      totalAmount: s.totalAmount,
+      timestamp: s.timestamp
+    })));
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -422,7 +515,57 @@ app.post('/api/sales', authenticateToken, async (req: any, res: any) => {
       return res.status(403).json({ message: 'Outlet license expired. Sales are disabled for this outlet.' });
     }
 
-    const sale = new Sale(req.body);
+    const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (rawItems.length === 0) {
+      return res.status(400).json({ message: 'Sale items are required' });
+    }
+
+    const items = rawItems.map((it: any) => ({
+      productId: String(it.productId || ''),
+      quantity: Number(it.quantity),
+      price: Number(it.price),
+    }));
+
+    for (const it of items) {
+      if (!it.productId) return res.status(400).json({ message: 'Invalid productId in items' });
+      if (!Number.isFinite(it.quantity) || it.quantity <= 0) return res.status(400).json({ message: 'Invalid quantity in items' });
+      if (!Number.isFinite(it.price) || it.price < 0) return res.status(400).json({ message: 'Invalid price in items' });
+    }
+
+    const subtotal = items.reduce((sum: number, it: any) => sum + it.quantity * it.price, 0);
+
+    const discountTypeRaw = String(req.body?.discountType || '').trim();
+    const discountType = discountTypeRaw === 'percent' ? 'percent' : discountTypeRaw === 'amount' ? 'amount' : null;
+    const discountValue = Number(req.body?.discountValue || 0);
+
+    if (discountType && (!Number.isFinite(discountValue) || discountValue < 0)) {
+      return res.status(400).json({ message: 'Invalid discount value' });
+    }
+
+    let discountAmount = 0;
+    if (discountType === 'percent') {
+      if (discountValue > 100) return res.status(400).json({ message: 'Discount percent cannot exceed 100' });
+      discountAmount = (subtotal * discountValue) / 100;
+    } else if (discountType === 'amount') {
+      discountAmount = discountValue;
+    }
+
+    if (discountAmount > subtotal) {
+      return res.status(400).json({ message: 'Discount cannot exceed subtotal' });
+    }
+
+    const totalAmount = subtotal - discountAmount;
+
+    const sale = new Sale({
+      outletId: saleOutletId,
+      userId: String(req.body?.userId || req.user.id),
+      items,
+      subtotal,
+      discountType: discountType || undefined,
+      discountValue: discountType ? discountValue : undefined,
+      discountAmount: discountType ? discountAmount : undefined,
+      totalAmount,
+    });
     await sale.save({ session });
 
     // Update inventory
@@ -437,7 +580,18 @@ app.post('/api/sales', authenticateToken, async (req: any, res: any) => {
     }
 
     await session.commitTransaction();
-    res.status(201).json({ id: sale._id, outletId: sale.outletId, userId: sale.userId, items: sale.items, totalAmount: sale.totalAmount, timestamp: sale.timestamp });
+    res.status(201).json({
+      id: sale._id,
+      outletId: sale.outletId,
+      userId: sale.userId,
+      items: sale.items,
+      subtotal: (sale as any).subtotal,
+      discountType: (sale as any).discountType,
+      discountValue: (sale as any).discountValue,
+      discountAmount: (sale as any).discountAmount,
+      totalAmount: sale.totalAmount,
+      timestamp: sale.timestamp
+    });
   } catch (err: any) {
     await session.abortTransaction();
     res.status(400).json({ message: err.message });
@@ -504,6 +658,20 @@ app.patch('/api/transfers/:id', authenticateToken, async (req, res) => {
     res.status(400).json({ message: err.message });
   } finally {
     session.endSession();
+  }
+});
+
+app.delete('/api/transfers/:id', authenticateToken, async (req: any, res: any) => {
+  try {
+    if (!['super_admin', 'admin', 'manager'].includes(req.user?.role)) {
+      return res.status(403).json({ message: 'Unauthorized to delete transfers' });
+    }
+
+    const deleted = await Transfer.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Transfer not found' });
+    return res.status(204).send();
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
   }
 });
 

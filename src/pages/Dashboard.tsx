@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Sale, InventoryItem, Product, Outlet } from '../types';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   TrendingUp, 
   Package, 
@@ -24,17 +24,19 @@ import {
   Tooltip, 
   ResponsiveContainer, 
 } from 'recharts';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { profile, isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const outletIdParam = (searchParams.get('outletId') || '').trim();
+  const navigate = useNavigate();
   const [sales, setSales] = useState<Sale[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rangeDays, setRangeDays] = useState<7 | 30>(7);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,38 +68,74 @@ const Dashboard: React.FC = () => {
     };
 
     if (profile) {
+      setLoading(true);
       fetchData();
     }
   }, [isAdmin, outletIdParam, profile]);
 
-  const totalSalesAmount = sales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
-  const lowStockItems = inventory.filter(item => item.quantity < 10);
+  const now = useMemo(() => new Date(), [rangeDays, sales]);
+
+  const salesByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const sale of sales) {
+      const ts = new Date(sale.timestamp);
+      if (Number.isNaN(ts.getTime())) continue;
+      const key = format(ts, 'yyyy-MM-dd');
+      map.set(key, (map.get(key) || 0) + (sale.totalAmount || 0));
+    }
+    return map;
+  }, [sales]);
+
+  const chartData = useMemo(() => {
+    return Array.from({ length: rangeDays }).map((_, i) => {
+      const date = subDays(now, rangeDays - 1 - i);
+      const key = format(date, 'yyyy-MM-dd');
+      return {
+        name: format(date, rangeDays === 30 ? 'MMM d' : 'MMM dd'),
+        sales: salesByDay.get(key) || 0,
+      };
+    });
+  }, [now, rangeDays, salesByDay]);
+
+  const lowStockCount = useMemo(() => inventory.reduce((sum, item) => sum + (item.quantity < 10 ? 1 : 0), 0), [inventory]);
   const totalProducts = products.length;
 
-  const chartData = Array.from({ length: 7 }).map((_, i) => {
-    const date = subDays(new Date(), 6 - i);
-    const dateStr = format(date, 'MMM dd');
-    const daySales = sales.filter(sale => {
-      const saleDate = new Date(sale.timestamp);
-      return saleDate >= startOfDay(date) && saleDate <= endOfDay(date);
-    });
-    return {
-      name: dateStr,
-      sales: daySales.reduce((sum, s) => sum + (s.totalAmount || 0), 0),
-    };
-  });
+  const { totalSalesAmount, revenueTrend, revenueIsUp } = useMemo(() => {
+    const currentStart = startOfDay(subDays(now, rangeDays - 1));
+    const currentEnd = endOfDay(now);
+    const prevStart = startOfDay(subDays(now, rangeDays * 2 - 1));
+    const prevEnd = endOfDay(subDays(now, rangeDays));
+
+    let currentRevenue = 0;
+    let prevRevenue = 0;
+
+    for (const sale of sales) {
+      const ts = new Date(sale.timestamp);
+      if (Number.isNaN(ts.getTime())) continue;
+
+      if (isWithinInterval(ts, { start: currentStart, end: currentEnd })) currentRevenue += sale.totalAmount || 0;
+      else if (isWithinInterval(ts, { start: prevStart, end: prevEnd })) prevRevenue += sale.totalAmount || 0;
+    }
+
+    const pct = prevRevenue === 0 ? (currentRevenue > 0 ? 100 : 0) : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+    const isUp = pct >= 0;
+    const label = `${isUp ? '+' : ''}${pct.toFixed(1)}%`;
+
+    return { totalSalesAmount: currentRevenue, revenueTrend: label, revenueIsUp: isUp };
+  }, [now, rangeDays, sales]);
 
   const stats = [
-    { name: 'Total Revenue', value: `$${totalSalesAmount.toLocaleString()}`, icon: DollarSign, color: 'bg-emerald-500', trend: '+12.5%', isUp: true },
-    { name: 'Active Inventory', value: inventory.length.toString(), icon: Package, color: 'bg-blue-500', trend: '+3.2%', isUp: true },
-    { name: 'Low Stock Alerts', value: lowStockItems.length.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '-2.1%', isUp: false },
-    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-indigo-500', trend: '+0.5%', isUp: true },
+    { name: `Revenue (Last ${rangeDays}d)`, value: `$${totalSalesAmount.toLocaleString()}`, icon: DollarSign, color: 'bg-emerald-500', trend: revenueTrend, isUp: revenueIsUp },
+    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-500', trend: '—', isUp: true },
+    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '—', isUp: false },
+    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-indigo-500', trend: '—', isUp: true },
   ];
 
-  const selectedOutletName =
-    isAdmin && outletIdParam
-      ? (outlets.find(o => o.id === outletIdParam)?.name || 'Selected Outlet')
-      : 'All Outlets';
+  const selectedOutletName = useMemo(() => {
+    if (!isAdmin) return '';
+    if (!outletIdParam) return 'All Outlets';
+    return outlets.find(o => o.id === outletIdParam)?.name || 'Selected Outlet';
+  }, [isAdmin, outletIdParam, outlets]);
 
   if (loading) {
     return <div className="animate-pulse space-y-8">
@@ -110,24 +148,22 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
           <p className="text-gray-500 mt-1">
             Welcome back, {profile?.displayName || 'User'}. Here's what's happening today.
             {isAdmin && (
-              <span className="ml-2 text-gray-400">
-                • {selectedOutletName}
-              </span>
+              <span className="ml-2 text-gray-400">- {selectedOutletName}</span>
             )}
           </p>
         </div>
-        <div className="text-right hidden sm:block space-y-3">
+        <div className="text-right space-y-3 w-full sm:w-auto">
           {isAdmin && (
-            <div className="flex items-center justify-end gap-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Outlet View</p>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest self-end sm:self-auto">Outlet View</p>
               <select
-                className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+                className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
                 value={outletIdParam}
                 onChange={(e) => {
                   const next = e.target.value;
@@ -144,7 +180,7 @@ const Dashboard: React.FC = () => {
               </select>
             </div>
           )}
-          <div>
+          <div className="flex flex-col sm:items-end">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Session</p>
             <p className="text-sm font-medium text-gray-700 flex items-center gap-2 justify-end mt-1">
               <Clock size={16} className="text-blue-500" />
@@ -170,9 +206,13 @@ const Dashboard: React.FC = () => {
               </div>
               <div className={cn(
                 "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
-                stat.isUp ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                stat.trend === '—'
+                  ? "bg-gray-100 text-gray-600"
+                  : stat.isUp
+                    ? "bg-emerald-50 text-emerald-600"
+                    : "bg-red-50 text-red-600"
               )}>
-                {stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                {stat.trend !== '—' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
                 {stat.trend}
               </div>
             </div>
@@ -187,9 +227,13 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-bold text-gray-900">Sales Performance</h3>
-            <select className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
+            <select
+              className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500"
+              value={rangeDays}
+              onChange={(e) => setRangeDays((parseInt(e.target.value, 10) === 30 ? 30 : 7) as 7 | 30)}
+            >
+              <option value={7}>Last 7 Days</option>
+              <option value={30}>Last 30 Days</option>
             </select>
           </div>
           <div className="h-[300px] w-full">
@@ -202,6 +246,7 @@ const Dashboard: React.FC = () => {
                   tickLine={false} 
                   tick={{ fontSize: 12, fill: '#94a3b8' }} 
                   dy={10}
+                  interval={rangeDays === 30 ? 4 : 0}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -217,7 +262,7 @@ const Dashboard: React.FC = () => {
                   dataKey="sales" 
                   fill="#3b82f6" 
                   radius={[6, 6, 0, 0]} 
-                  barSize={40}
+                  barSize={rangeDays === 30 ? 14 : 40}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -251,7 +296,14 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
-          <button className="mt-8 w-full py-3 text-sm font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+          <button
+            type="button"
+            onClick={() => {
+              const qs = outletIdParam ? `?outletId=${encodeURIComponent(outletIdParam)}` : '';
+              navigate(`/transactions${qs}`);
+            }}
+            className="mt-8 w-full py-3 text-sm font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+          >
             View All Transactions
           </button>
         </div>

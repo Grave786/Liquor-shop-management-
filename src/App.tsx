@@ -10,6 +10,7 @@ import Sales from './pages/Sales';
 import Outlets from './pages/Outlets';
 import Users from './pages/Users';
 import StockTransfers from './pages/StockTransfer';
+import Transactions from './pages/Transactions';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/sales" element={<Sales />} />
+            <Route path="/transactions" element={<Transactions />} />
             <Route path="/transfers" element={<AuthGuard requiredRole="manager"><StockTransfers /></AuthGuard>} />
             <Route path="/outlets" element={<AuthGuard requiredRole="admin"><Outlets /></AuthGuard>} />
             <Route path="/users" element={<AuthGuard requiredRole="admin"><Users /></AuthGuard>} />

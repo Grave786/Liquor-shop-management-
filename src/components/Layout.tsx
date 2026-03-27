@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -13,6 +13,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { apiFetch } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -24,6 +25,7 @@ function cn(...inputs: ClassValue[]) {
 const Layout: React.FC = () => {
   const { profile, isAdmin, isSuperAdmin, isManager, logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [managerOutletLabel, setManagerOutletLabel] = useState<string>('');
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -39,6 +41,35 @@ const Layout: React.FC = () => {
     { name: 'Outlets', path: '/outlets', icon: Store, show: isAdmin },
     { name: 'Users', path: '/users', icon: Users, show: isAdmin },
   ];
+
+  useEffect(() => {
+    const loadManagerOutlet = async () => {
+      if (!profile || profile.role !== 'manager') {
+        setManagerOutletLabel('');
+        return;
+      }
+
+      try {
+        const res = await apiFetch('/api/outlets');
+        if (!res.ok) return;
+        const outletList = await res.json();
+        const outlet =
+          (profile.outletId && outletList.find((o: any) => o.id === profile.outletId)) ||
+          outletList.find((o: any) => o.managerId === profile.uid);
+
+        if (!outlet) {
+          setManagerOutletLabel('Not assigned');
+          return;
+        }
+
+        setManagerOutletLabel(outlet.location ? `${outlet.name} • ${outlet.location}` : outlet.name);
+      } catch (err) {
+        console.error('Failed to load manager outlet:', err);
+      }
+    };
+
+    loadManagerOutlet();
+  }, [profile?.outletId, profile?.role, profile?.uid]);
 
   return (
     <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans">
@@ -115,6 +146,11 @@ const Layout: React.FC = () => {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">User</p>
               <p className="text-sm font-medium truncate">{profile?.displayName || profile?.email}</p>
               <p className="text-[10px] font-bold text-blue-500 uppercase">{profile?.role.replace('_', ' ')}</p>
+              {profile?.role === 'manager' && managerOutletLabel && (
+                <p className="text-[10px] font-bold text-gray-500 uppercase mt-1 truncate">
+                  Outlet: {managerOutletLabel}
+                </p>
+              )}
             </div>
           )}
           <button

@@ -93,6 +93,11 @@ const Outlets: React.FC = () => {
   };
 
   const managers = users.filter(u => u.role === 'manager' || u.role === 'admin');
+  const managerToOutletId = new Map<string, string>();
+  for (const outlet of outlets) {
+    if (outlet.managerId) managerToOutletId.set(outlet.managerId, outlet.id);
+  }
+  const editingOutletId = editingOutlet?.id || '';
 
   return (
     <div className="space-y-8">
@@ -274,11 +279,20 @@ const Outlets: React.FC = () => {
                     >
                       <option value="">Select a Manager</option>
                       {managers.map(m => (
-                        <option key={m.uid} value={m.uid}>
+                        <option
+                          key={m.uid}
+                          value={m.uid}
+                          disabled={!!(managerToOutletId.get(m.uid) && managerToOutletId.get(m.uid) !== editingOutletId)}
+                        >
                           {m.displayName || m.email} ({m.role})
                         </option>
                       ))}
                     </select>
+                    {formData.managerId && managerToOutletId.get(formData.managerId) && managerToOutletId.get(formData.managerId) !== editingOutletId && (
+                      <p className="text-xs text-red-600 font-medium">
+                        This manager is already assigned to another outlet.
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2">

@@ -22,6 +22,8 @@ const Sales: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [cart, setCart] = useState<SaleItem[]>([]);
+  const [discountType, setDiscountType] = useState<'amount' | 'percent'>('amount');
+  const [discountValue, setDiscountValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +103,11 @@ const Sales: React.FC = () => {
     setCart(cart.map(i => i.productId === productId ? { ...i, quantity: newQty } : i));
   };
 
-  const totalAmount = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+  const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+  const discountAmount = discountType === 'percent'
+    ? (subtotal * Math.min(100, Math.max(0, discountValue))) / 100
+    : Math.min(subtotal, Math.max(0, discountValue));
+  const totalAmount = Math.max(0, subtotal - discountAmount);
 
   const handleCheckout = async () => {
     if (!profile?.outletId) {
@@ -117,6 +123,8 @@ const Sales: React.FC = () => {
           outletId: profile.outletId,
           userId: profile.uid,
           items: cart,
+          discountType: discountAmount > 0 ? discountType : undefined,
+          discountValue: discountAmount > 0 ? discountValue : undefined,
           totalAmount,
           timestamp: new Date().toISOString()
         })
@@ -128,6 +136,7 @@ const Sales: React.FC = () => {
       }
 
       setCart([]);
+      setDiscountValue(0);
       alert('Sale completed successfully!');
       fetchData();
     } catch (err: any) {
@@ -291,7 +300,34 @@ const Sales: React.FC = () => {
         <div className="p-6 bg-gray-50 border-t border-gray-100 space-y-4">
           <div className="flex justify-between items-center text-gray-500 text-sm">
             <span>Subtotal</span>
-            <span>${totalAmount.toFixed(2)}</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3 text-gray-500 text-sm">
+            <div className="flex items-center gap-2">
+              <span>Discount</span>
+              <select
+                className="text-xs border-gray-200 rounded-lg bg-white px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value === 'percent' ? 'percent' : 'amount')}
+                disabled={cart.length === 0}
+              >
+                <option value="amount">$</option>
+                <option value="percent">%</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                className="w-24 text-right px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-bold text-gray-900"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                disabled={cart.length === 0}
+              />
+              <span className="text-xs font-bold text-gray-400">
+                -${discountAmount.toFixed(2)}
+              </span>
+            </div>
           </div>
           <div className="flex justify-between items-center text-gray-500 text-sm">
             <span>Tax (0%)</span>
