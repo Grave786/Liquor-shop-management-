@@ -153,12 +153,12 @@ const Sales: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 h-[calc(100vh-160px)]">
+    <div className="flex flex-col lg:flex-row gap-8 min-h-[calc(100vh-220px)]">
       {/* Product Selection Area */}
       <div className="flex-1 flex flex-col gap-6 overflow-hidden">
         <header>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">New Sale</h1>
-          <p className="text-gray-500 mt-1">Select products to add to the transaction.</p>
+          <h1 className="app-h1">New Sale</h1>
+          <p className="app-subtitle">Select products to add to the transaction.</p>
         </header>
 
         <div className="relative">
@@ -166,7 +166,7 @@ const Sales: React.FC = () => {
           <input
             type="text"
             placeholder="Search products by name or SKU..."
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-100 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="app-input pl-12 pr-4 py-4"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -184,13 +184,13 @@ const Sales: React.FC = () => {
                   onClick={() => addToCart(product)}
                   disabled={stock === 0}
                   className={cn(
-                    "p-5 text-left bg-white rounded-2xl border transition-all duration-200 group relative",
-                    stock === 0 ? "opacity-50 grayscale cursor-not-allowed" : "hover:border-blue-500 hover:shadow-lg hover:shadow-blue-50",
-                    inCart ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-100"
+                    "p-5 text-left bg-white/90 rounded-2xl border transition-all duration-200 group relative",
+                    stock === 0 ? "opacity-50 grayscale cursor-not-allowed" : "hover:border-blue-600 hover:shadow-lg hover:shadow-blue-600/10",
+                    inCart ? "border-blue-600 ring-1 ring-blue-600/20" : "border-slate-200/70"
                   )}
                 >
                   <div className="flex justify-between items-start mb-3">
-                    <div className="px-2 py-0.5 bg-gray-50 text-gray-500 text-[10px] font-bold uppercase rounded tracking-wider">
+                    <div className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-black uppercase rounded tracking-wider">
                       {product.category}
                     </div>
                     {inCart && (
@@ -206,7 +206,7 @@ const Sales: React.FC = () => {
                     <p className="text-lg font-bold text-gray-900">${product.unitPrice.toFixed(2)}</p>
                     <p className={cn(
                       "text-xs font-bold",
-                      stock < 10 ? "text-amber-500" : "text-emerald-500"
+                      stock < 10 ? "text-amber-500" : "text-green-600"
                     )}>
                       {stock} in stock
                     </p>
@@ -219,15 +219,15 @@ const Sales: React.FC = () => {
       </div>
 
       {/* Cart / Checkout Area */}
-      <div className="w-full lg:w-[400px] flex flex-col bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+      <div className="app-card w-full lg:w-[400px] flex flex-col">
+        <div className="app-card-header">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-600 text-white rounded-xl">
               <ShoppingCart size={20} />
             </div>
             <h2 className="font-bold text-gray-900">Current Order</h2>
           </div>
-          <span className="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-full">
+          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full">
             {cart.reduce((sum, i) => sum + i.quantity, 0)} items
           </span>
         </div>
@@ -246,14 +246,14 @@ const Sales: React.FC = () => {
                   exit={{ opacity: 0, x: -20 }}
                   className="flex items-center gap-4 group"
                 >
-                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400">
+                  <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
                     <Package size={24} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-gray-900 truncate">{product.name}</p>
                     <p className="text-xs text-gray-500">${product.unitPrice.toFixed(2)} each</p>
                   </div>
-                  <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg">
+                  <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
                     <button 
                       onClick={() => updateQuantity(item.productId, -1)}
                       className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-gray-500"
@@ -281,7 +281,7 @@ const Sales: React.FC = () => {
 
           {cart.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
                 <ShoppingCart size={32} className="opacity-20" />
               </div>
               <p className="text-sm font-medium">Your cart is empty</p>
@@ -297,7 +297,7 @@ const Sales: React.FC = () => {
           </div>
         )}
 
-        <div className="p-6 bg-gray-50 border-t border-gray-100 space-y-4">
+        <div className="p-6 bg-slate-50/70 border-t border-slate-200/70 space-y-4">
           <div className="flex justify-between items-center text-gray-500 text-sm">
             <span>Subtotal</span>
             <span>${subtotal.toFixed(2)}</span>
@@ -306,7 +306,7 @@ const Sales: React.FC = () => {
             <div className="flex items-center gap-2">
               <span>Discount</span>
               <select
-                className="text-xs border-gray-200 rounded-lg bg-white px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
+                className="text-xs border-gray-200 rounded-lg bg-white px-2 py-1 focus:ring-blue-600 focus:border-blue-600"
                 value={discountType}
                 onChange={(e) => setDiscountType(e.target.value === 'percent' ? 'percent' : 'amount')}
                 disabled={cart.length === 0}
@@ -319,7 +319,7 @@ const Sales: React.FC = () => {
               <input
                 type="number"
                 min="0"
-                className="w-24 text-right px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm font-bold text-gray-900"
+                className="w-24 text-right px-3 py-2 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm font-bold text-gray-900"
                 value={discountValue}
                 onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
                 disabled={cart.length === 0}
@@ -335,12 +335,12 @@ const Sales: React.FC = () => {
           </div>
           <div className="flex justify-between items-center pt-2">
             <span className="text-lg font-bold text-gray-900">Total</span>
-            <span className="text-2xl font-black text-blue-600">${totalAmount.toFixed(2)}</span>
+            <span className="text-2xl font-black text-blue-700">${totalAmount.toFixed(2)}</span>
           </div>
           <button
             disabled={cart.length === 0 || loading}
             onClick={handleCheckout}
-            className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2 mt-4"
+            className="app-btn-primary-lg flex items-center justify-center gap-2 mt-4 disabled:grayscale"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

@@ -99,10 +99,10 @@ const Users: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">User Management</h1>
-          <p className="text-gray-500 mt-1">Manage user roles and outlet assignments across the enterprise.</p>
+          <h1 className="app-h1">User Management</h1>
+          <p className="app-subtitle">Manage user roles and outlet assignments across the enterprise.</p>
         </div>
         {(isSuperAdmin || isAdmin) && (
           <button
@@ -111,7 +111,7 @@ const Users: React.FC = () => {
               setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: '' });
               setIsModalOpen(true);
             }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2"
+            className="app-btn-primary"
           >
             <UsersIcon size={20} />
             Add New User
@@ -119,23 +119,23 @@ const Users: React.FC = () => {
         )}
       </header>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="app-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="app-table">
             <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">User</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Role</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Outlet Assignment</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Outlet Assignment</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {users.map((user) => {
                 const outlet = outlets.find(o => o.id === user.outletId);
                 return (
-                  <tr key={user.uid} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-6 py-4">
+                  <tr key={user.uid} className="group">
+                    <td>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
                           {user.displayName?.charAt(0) || user.email.charAt(0).toUpperCase()}
@@ -148,7 +148,7 @@ const Users: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td>
                       <div className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
                         user.role === 'super_admin' ? "bg-purple-50 text-purple-600" :
@@ -160,7 +160,7 @@ const Users: React.FC = () => {
                         {user.role.replace('_', ' ')}
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td>
                       {outlet ? (
                         <div className="flex items-center gap-2 text-sm text-gray-700">
                           <Store size={14} className="text-blue-500" />
@@ -170,7 +170,7 @@ const Users: React.FC = () => {
                         <span className="text-xs text-gray-400 italic">No outlet assigned</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="text-right">
                       {canManageUser(user) && user.uid !== currentUser?.id && (
                         <button
                           onClick={() => {
@@ -184,7 +184,7 @@ const Users: React.FC = () => {
                             });
                             setIsModalOpen(true);
                           }}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                          className="app-btn-icon hover:text-blue-600 hover:bg-blue-50"
                         >
                           <Edit2 size={18} />
                         </button>
@@ -245,7 +245,7 @@ const Users: React.FC = () => {
                         <input
                           type="email"
                           required
-                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                          className="app-input"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="user@example.com"
@@ -255,7 +255,7 @@ const Users: React.FC = () => {
                         <label className="text-sm font-bold text-gray-700">Display Name</label>
                         <input
                           type="text"
-                          className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                          className="app-input"
                           value={formData.displayName}
                           onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                           placeholder="John Doe"
@@ -271,7 +271,7 @@ const Users: React.FC = () => {
                     <input
                       type="password"
                       required={!editingUser}
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                      className="app-input"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       placeholder="••••••••"
@@ -302,7 +302,7 @@ const Users: React.FC = () => {
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700">Outlet Assignment</label>
                     <select
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                      className="app-select w-full"
                       value={formData.outletId}
                       onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
                     >
@@ -317,13 +317,13 @@ const Users: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setIsModalOpen(false)}
-                      className="flex-1 py-4 text-sm font-bold text-gray-500 bg-gray-100 rounded-2xl hover:bg-gray-200 transition-colors"
+                      className="flex-1 app-btn-secondary-lg text-sm"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-4 text-sm font-bold text-white bg-blue-600 rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                      className="flex-1 app-btn-primary-lg text-sm flex items-center justify-center gap-2"
                     >
                       <CheckCircle2 size={20} />
                       Save Changes

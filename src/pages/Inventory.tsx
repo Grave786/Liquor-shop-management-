@@ -30,8 +30,10 @@ const Inventory: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProductForStock, setSelectedProductForStock] = useState<Product | null>(null);
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Form State
@@ -98,6 +100,11 @@ const Inventory: React.FC = () => {
       outletId: currentOutletId
     });
     setIsStockModalOpen(true);
+  };
+
+  const handleOpenDetails = (product: Product) => {
+    setSelectedProductForDetails(product);
+    setIsDetailsModalOpen(true);
   };
 
   const handleUpdateStock = async (e: React.FormEvent) => {
@@ -210,12 +217,29 @@ const Inventory: React.FC = () => {
     return items.reduce((sum, i) => sum + i.quantity, 0);
   };
 
+  const outletNameById = new Map(outlets.map((o) => [o.id, o.name] as const));
+
+  const getOutletStockForProduct = (productId: string) => {
+    const byOutlet = new Map<string, number>();
+    for (const row of inventory) {
+      if (row.productId !== productId) continue;
+      byOutlet.set(row.outletId, (byOutlet.get(row.outletId) || 0) + (row.quantity || 0));
+    }
+    return Array.from(byOutlet.entries())
+      .map(([outletId, quantity]) => ({
+        outletId,
+        outletName: outletNameById.get(outletId) || outletId,
+        quantity,
+      }))
+      .sort((a, b) => a.outletName.localeCompare(b.outletName));
+  };
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Inventory</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="app-h1">Inventory</h1>
+          <p className="app-subtitle">
             Manage your product catalog and track stock levels.
             {isAdmin && <span className="ml-2 text-gray-400">• {selectedOutletName}</span>}
           </p>
@@ -223,7 +247,7 @@ const Inventory: React.FC = () => {
         <div className="flex items-center gap-3">
           {isAdmin && (
             <select
-              className="text-sm border-gray-200 rounded-xl bg-gray-50 px-4 py-2.5 focus:ring-blue-500 focus:border-blue-500"
+              className="app-select"
               value={outletIdParam}
               onChange={(e) => {
                 const next = e.target.value;
@@ -255,7 +279,7 @@ const Inventory: React.FC = () => {
                 });
                 setIsModalOpen(true);
               }}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+              className="app-btn-primary rounded-xl"
             >
               <Plus size={20} />
               Add Product
@@ -265,13 +289,13 @@ const Inventory: React.FC = () => {
       </header>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+      <div className="app-card p-4 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
             placeholder="Search by name or SKU..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm"
+            className="app-input pl-10 pr-4 py-2 text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -279,7 +303,7 @@ const Inventory: React.FC = () => {
         <div className="flex gap-4">
           <div className="relative">
             <select
-              className="appearance-none pl-4 pr-10 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-medium text-gray-700 cursor-pointer"
+              className="app-select appearance-none pl-4 pr-10 py-2 text-sm font-medium text-gray-700 cursor-pointer"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
@@ -288,7 +312,7 @@ const Inventory: React.FC = () => {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
           </div>
-          <button className="p-2 bg-gray-50 text-gray-500 rounded-xl hover:bg-gray-100 transition-colors">
+          <button className="app-btn-icon">
             <Filter size={20} />
           </button>
         </div>
@@ -360,7 +384,7 @@ const Inventory: React.FC = () => {
                     <p className="text-xs text-gray-500 font-medium">Stock</p>
                     <div className={cn(
                       "flex items-center gap-1.5 font-bold text-lg",
-                      isLowStock ? "text-amber-500" : "text-emerald-500"
+                      isLowStock ? "text-amber-500" : "text-green-600"
                     )}>
                       {isLowStock && <AlertCircle size={16} />}
                       {stock}
@@ -382,7 +406,11 @@ const Inventory: React.FC = () => {
                     </button>
                   )}
                 </div>
-                <button className="text-xs font-bold text-blue-600 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDetails(product)}
+                  className="text-xs font-bold text-blue-600 hover:underline"
+                >
                   View Details
                 </button>
               </div>
@@ -390,6 +418,142 @@ const Inventory: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Details Modal */}
+      <AnimatePresence>
+        {isDetailsModalOpen && selectedProductForDetails && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDetailsModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-start gap-6 mb-8">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+                        <Package size={22} />
+                      </div>
+                      <div className="min-w-0">
+                        <h2 className="text-2xl font-extrabold tracking-tight text-gray-900 truncate">
+                          {selectedProductForDetails.name}
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                          {selectedProductForDetails.category} • SKU: {selectedProductForDetails.sku}
+                        </p>
+                      </div>
+                    </div>
+                    {selectedProductForDetails.description && (
+                      <p className="mt-4 text-sm text-gray-600 leading-relaxed">
+                        {selectedProductForDetails.description}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailsModalOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0"
+                    aria-label="Close"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Pricing</p>
+                    <div className="mt-3">
+                      <p className="text-sm text-gray-500">Unit price</p>
+                      <p className="text-3xl font-black text-gray-900">
+                        ${selectedProductForDetails.unitPrice.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Stock</p>
+                    <div className="mt-3 flex items-end justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Total</p>
+                        <p className="text-3xl font-black text-gray-900">
+                          {getStockForProduct(selectedProductForDetails.id)}
+                        </p>
+                      </div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        {isAdmin ? 'Global' : 'Outlet'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                      {isAdmin ? 'Stock by outlet' : 'Stock details'}
+                    </p>
+                  </div>
+
+                  {getOutletStockForProduct(selectedProductForDetails.id).length === 0 ? (
+                    <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-500">
+                      No stock entries found for this product.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-gray-100">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50/70 border-b border-gray-100">
+                            <th className="px-5 py-3 text-[11px] font-black text-gray-400 uppercase tracking-widest">Outlet</th>
+                            <th className="px-5 py-3 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 bg-white">
+                          {getOutletStockForProduct(selectedProductForDetails.id).map((row) => (
+                            <tr key={row.outletId} className="hover:bg-gray-50/60 transition-colors">
+                              <td className="px-5 py-3 text-sm font-medium text-gray-900">{row.outletName}</td>
+                              <td className="px-5 py-3 text-sm font-bold text-gray-900 text-right">{row.quantity}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-8 py-5 bg-gray-50/70 border-t border-gray-100 flex justify-end gap-3">
+                {(isAdmin || isManager) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDetailsModalOpen(false);
+                      handleOpenStockModal(selectedProductForDetails);
+                    }}
+                    className="px-5 py-3 rounded-2xl text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                  >
+                    Adjust Stock
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsModalOpen(false)}
+                  className="px-5 py-3 rounded-2xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal */}
       <AnimatePresence>

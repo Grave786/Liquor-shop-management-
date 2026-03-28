@@ -2,10 +2,24 @@
 
 :root {
   --app-bg:
-    radial-gradient(1200px circle at 20% 0%, rgb(59 130 246 / 14%), transparent 55%),
-    radial-gradient(900px circle at 85% 25%, rgb(99 102 241 / 12%), transparent 55%),
-    radial-gradient(700px circle at 60% 90%, rgb(16 185 129 / 10%), transparent 55%),
-    linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f8fafc 100%);
+    radial-gradient(1200px circle at 0% 0%, rgb(59 130 246 / 18%), transparent 55%),
+    radial-gradient(900px circle at 100% 30%, rgb(16 185 129 / 14%), transparent 55%),
+    linear-gradient(180deg, #0b1120 0%, #0b1120 50%, #070c17 100%);
+}
+
+@layer base {
+  :focus-visible {
+    outline: none;
+  }
+
+  html {
+    text-rendering: geometricPrecision;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
 html,
@@ -14,10 +28,277 @@ body {
 }
 
 body {
+  color: #e2e8f0;
+  color-scheme: dark;
   background: var(--app-bg);
   background-attachment: fixed;
 }
 
 #root {
   min-height: 100%;
+}
+
+@layer components {
+  .app-content {
+    @apply rounded-3xl p-8;
+    background-color: rgb(15 23 42 / 0.68);
+    border: 1px solid rgb(148 163 184 / 0.14);
+    box-shadow: 0 18px 70px rgb(2 6 23 / 0.62);
+    color: #e2e8f0;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .app-card {
+    @apply rounded-3xl overflow-hidden;
+    background-color: #1e293b;
+    border: 1px solid rgb(226 232 240 / 0.12);
+    box-shadow: 0 12px 36px rgb(2 6 23 / 0.42);
+    color: #e2e8f0;
+  }
+
+  .app-card-header {
+    @apply px-6 py-4 flex items-center justify-between;
+    background-color: rgb(11 17 32 / 0.6);
+    border-bottom: 1px solid rgb(148 163 184 / 0.14);
+  }
+
+  .app-h1 {
+    @apply text-3xl sm:text-4xl font-extrabold tracking-tight;
+    color: #e2e8f0;
+  }
+
+  .app-subtitle {
+    @apply text-sm mt-1;
+    color: rgb(148 163 184);
+  }
+
+  .app-input {
+    @apply w-full px-4 py-3 rounded-2xl shadow-sm transition-all;
+    background-color: rgb(11 17 32 / 0.65);
+    border: 1px solid rgb(148 163 184 / 0.18);
+    color: #e2e8f0;
+  }
+  .app-input::placeholder {
+    color: rgb(148 163 184 / 0.8);
+  }
+  .app-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.18);
+    border-color: rgb(59 130 246 / 0.55);
+  }
+
+  .app-select {
+    @apply text-sm rounded-xl px-4 py-2.5 shadow-sm;
+    background-color: rgb(11 17 32 / 0.65);
+    border: 1px solid rgb(148 163 184 / 0.18);
+    color: #e2e8f0;
+  }
+  .app-select:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.18);
+    border-color: rgb(59 130 246 / 0.55);
+  }
+
+  input[type='date'].app-select {
+    color-scheme: dark;
+    padding-right: 2.75rem;
+  }
+  input[type='date'].app-select::-webkit-calendar-picker-indicator {
+    opacity: 0.95;
+    cursor: pointer;
+    filter: invert(1) brightness(1.6) drop-shadow(0 0 10px rgb(2 6 23 / 0.75));
+    background-color: rgb(59 130 246 / 0.18);
+    border-radius: 10px;
+    padding: 8px;
+    transform: scale(1.15);
+  }
+
+  .app-content input[type='date'] {
+    color-scheme: dark;
+  }
+
+  .app-content input[type='date']::-webkit-calendar-picker-indicator {
+    opacity: 0.95;
+    cursor: pointer;
+    filter: invert(1) brightness(1.6) drop-shadow(0 0 10px rgb(2 6 23 / 0.75));
+    background-color: rgb(59 130 246 / 0.18);
+    border-radius: 10px;
+    padding: 8px;
+    transform: scale(1.15);
+  }
+
+  .app-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all px-6 py-3 text-white active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
+    background-color: #3b82f6;
+    box-shadow: 0 12px 30px rgb(59 130 246 / 0.28);
+  }
+  .app-btn-primary:hover {
+    background-color: #2563eb;
+  }
+
+  .app-btn-primary-lg {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all w-full py-4 text-white active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
+    background-color: #3b82f6;
+    box-shadow: 0 12px 30px rgb(59 130 246 / 0.28);
+  }
+  .app-btn-primary-lg:hover {
+    background-color: #2563eb;
+  }
+
+  .app-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all px-6 py-3;
+    background-color: rgb(15 23 42 / 0.6);
+    border: 1px solid rgb(148 163 184 / 0.16);
+    color: #e2e8f0;
+  }
+  .app-btn-secondary:hover {
+    background-color: rgb(15 23 42 / 0.8);
+  }
+
+  .app-btn-secondary-lg {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all w-full py-4;
+    background-color: rgb(15 23 42 / 0.6);
+    border: 1px solid rgb(148 163 184 / 0.16);
+    color: #e2e8f0;
+  }
+  .app-btn-secondary-lg:hover {
+    background-color: rgb(15 23 42 / 0.8);
+  }
+
+  .app-btn-icon {
+    @apply p-2 rounded-xl transition-colors;
+    color: rgb(226 232 240 / 0.85);
+  }
+  .app-btn-icon:hover {
+    background-color: rgb(148 163 184 / 0.12);
+    color: #e2e8f0;
+  }
+
+  .app-table {
+    @apply w-full text-left border-collapse;
+  }
+
+  .app-table thead tr {
+    background-color: rgb(15 23 42 / 0.55);
+    border-bottom: 1px solid rgb(148 163 184 / 0.14);
+  }
+
+  .app-table thead th {
+    @apply px-6 py-4 text-[11px] font-black uppercase tracking-[0.22em];
+    color: rgb(148 163 184);
+  }
+
+  .app-table tbody {
+    border-top: 1px solid rgb(148 163 184 / 0.08);
+  }
+
+  .app-table tbody tr {
+    @apply transition-colors;
+  }
+  .app-table tbody tr:hover {
+    background-color: rgb(148 163 184 / 0.06);
+  }
+
+  .app-table td {
+    @apply px-6 py-4;
+  }
+}
+
+@layer utilities {
+  /* Dark-theme compatibility for existing utility-heavy markup inside the app shell */
+  .app-content .text-gray-900,
+  .app-content .text-slate-900,
+  .app-content .text-gray-800 {
+    @apply text-slate-100;
+  }
+
+  .app-content .text-gray-700,
+  .app-content .text-slate-700 {
+    @apply text-slate-200;
+  }
+
+  .app-content .text-slate-600 {
+    @apply text-slate-300;
+  }
+
+  .app-content .text-gray-600,
+  .app-content .text-gray-500,
+  .app-content .text-gray-400,
+  .app-content .text-slate-500 {
+    @apply text-slate-400;
+  }
+
+  .app-content .bg-white {
+    background-color: #1e293b !important;
+  }
+
+  .app-content .bg-gray-50,
+  .app-content .bg-gray-100 {
+    background-color: rgb(15 23 42 / 0.55) !important;
+  }
+
+  .app-content .bg-gray-50\/70 {
+    background-color: rgb(15 23 42 / 0.55) !important;
+  }
+
+  .app-content .bg-slate-100 {
+    background-color: rgb(148 163 184 / 0.12) !important;
+  }
+
+  .app-content .bg-slate-50\/70 {
+    background-color: rgb(15 23 42 / 0.55) !important;
+  }
+
+  .app-content .bg-gray-200 {
+    background-color: rgb(148 163 184 / 0.12) !important;
+  }
+
+  .app-content .bg-blue-50 {
+    background-color: rgb(59 130 246 / 0.14) !important;
+  }
+
+  .app-content .bg-blue-50\/50 {
+    background-color: rgb(59 130 246 / 0.12) !important;
+  }
+
+  .app-content .bg-blue-100 {
+    background-color: rgb(59 130 246 / 0.18) !important;
+  }
+
+  .app-content .text-blue-700,
+  .app-content .text-blue-600,
+  .app-content .text-blue-500 {
+    @apply text-blue-400;
+  }
+
+  .app-content .bg-green-50 {
+    background-color: rgb(16 185 129 / 0.14) !important;
+  }
+
+  .app-content .text-green-700,
+  .app-content .text-green-600 {
+    color: #10b981;
+  }
+
+  .app-content .border-gray-100,
+  .app-content .border-gray-200 {
+    border-color: rgb(148 163 184 / 0.16) !important;
+  }
+
+  .app-content .border-slate-200\/70 {
+    border-color: rgb(148 163 184 / 0.16) !important;
+  }
+
+  .app-content .hover\:bg-gray-50:hover {
+    background-color: rgb(148 163 184 / 0.08);
+  }
+
+  .app-content .hover\:bg-gray-100:hover {
+    background-color: rgb(148 163 184 / 0.10);
+  }
+
+  .app-content .hover\:bg-gray-200:hover {
+    background-color: rgb(148 163 184 / 0.12);
+  }
 }

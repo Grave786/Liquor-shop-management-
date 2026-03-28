@@ -140,39 +140,39 @@ const StockTransfers: React.FC = () => {
     <div className="space-y-8">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Stock Transfers</h1>
-          <p className="text-gray-500 mt-1">Move inventory between outlets and track logistics.</p>
+          <h1 className="app-h1">Stock Transfers</h1>
+          <p className="app-subtitle">Move inventory between outlets and track logistics.</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+          className="app-btn-primary rounded-xl"
         >
           <Plus size={20} />
           New Transfer
         </button>
       </header>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="app-card">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="app-table">
             <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Route</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Quantity</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+              <tr>
+                <th>Product</th>
+                <th>Route</th>
+                <th>Quantity</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {transfers.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((transfer) => {
                 const product = products.find(p => p.id === transfer.productId);
                 const fromOutlet = outlets.find(o => o.id === transfer.fromOutletId);
                 const toOutlet = outlets.find(o => o.id === transfer.toOutletId);
 
                 return (
-                  <tr key={transfer.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
+                  <tr key={transfer.id}>
+                    <td>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
                           <Package size={20} />
@@ -183,20 +183,20 @@ const StockTransfers: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td>
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <span className="text-gray-900">{fromOutlet?.name}</span>
                         <ArrowRight size={14} className="text-gray-400" />
                         <span className="text-gray-900">{toOutlet?.name}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td>
                       <span className="text-sm font-bold text-gray-900">{transfer.quantity} units</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td>
                       <div className={cn(
                         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                        transfer.status === 'completed' ? "bg-emerald-50 text-emerald-600" :
+                        transfer.status === 'completed' ? "bg-green-50 text-green-700" :
                         transfer.status === 'pending' ? "bg-amber-50 text-amber-600" :
                         "bg-red-50 text-red-600"
                       )}>
@@ -206,12 +206,12 @@ const StockTransfers: React.FC = () => {
                         {transfer.status}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="text-right">
                       {transfer.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleCompleteTransfer(transfer)}
-                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                            className="p-2 text-green-700 hover:bg-green-50 rounded-xl transition-all"
                             title="Complete Transfer"
                           >
                             <CheckCircle2 size={18} />
@@ -254,7 +254,7 @@ const StockTransfers: React.FC = () => {
       {/* Modal */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-start sm:items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -266,7 +266,7 @@ const StockTransfers: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[calc(100dvh-2rem)] overflow-y-auto"
             >
               <div className="p-8">
                 <div className="flex justify-between items-center mb-8">

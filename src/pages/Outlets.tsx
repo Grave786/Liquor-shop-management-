@@ -103,8 +103,8 @@ const Outlets: React.FC = () => {
     <div className="space-y-8">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Outlets</h1>
-          <p className="text-gray-500 mt-1">Manage physical store locations and assignments.</p>
+          <h1 className="app-h1">Outlets</h1>
+          <p className="app-subtitle">Manage physical store locations and assignments.</p>
         </div>
         <button
           onClick={() => {
@@ -112,7 +112,7 @@ const Outlets: React.FC = () => {
             setFormData({ name: '', location: '', managerId: '', licenseNumber: '', licenseValidUntil: '' });
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
+          className="app-btn-primary rounded-xl"
         >
           <Plus size={20} />
           Add Outlet
@@ -135,7 +135,7 @@ const Outlets: React.FC = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-all duration-300"
+              className="app-card group hover:shadow-md transition-all duration-300"
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
@@ -195,7 +195,7 @@ const Outlets: React.FC = () => {
                         License expired (until {licenseUntilLabel})
                       </span>
                     ) : (
-                      <span className="text-emerald-700 font-medium">
+                      <span className="text-green-700 font-medium">
                         {daysLeft} day(s) left (until {licenseUntilLabel})
                         {outlet.licenseNumber ? ` • #${outlet.licenseNumber}` : ''}
                       </span>
@@ -203,8 +203,8 @@ const Outlets: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-200/70 flex justify-between items-center">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.22em]">
                   Active Location
                 </span>
                 <button

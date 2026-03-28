@@ -47,9 +47,9 @@ const Login: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100"
+        className="max-w-md w-full bg-slate-800 rounded-3xl shadow-2xl shadow-black/50 overflow-hidden border border-white/10"
       >
-        <div className="p-8 text-center bg-blue-600 text-white relative overflow-hidden">
+        <div className="p-8 text-center bg-gradient-to-br from-blue-500 to-blue-600 text-white relative overflow-hidden">
           <motion.div 
             animate={{ rotate: 360 }}
             transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
@@ -65,10 +65,10 @@ const Login: React.FC = () => {
         <div className="p-8">
           <div className="mb-8 flex justify-between items-end">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-slate-100">
                 Welcome Back
               </h2>
-              <p className="text-gray-500 text-sm mt-1">
+              <p className="text-slate-400 text-sm mt-1">
                 Enter your credentials to continue
               </p>
             </div>
@@ -78,37 +78,37 @@ const Login: React.FC = () => {
             <motion.div 
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              className="mb-6 p-4 border text-sm rounded-xl flex items-center gap-2 bg-red-50 border-red-100 text-red-600"
+              className="mb-6 p-4 border text-sm rounded-xl flex items-center gap-2 bg-red-500/10 border-red-500/20 text-red-200"
             >
-              <div className="w-1 h-1 rounded-full shrink-0 bg-red-600" />
+              <div className="w-1 h-1 rounded-full shrink-0 bg-red-300" />
               {error}
             </motion.div>
           )}
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 ml-1">Email Address</label>
+              <label className="text-sm font-bold text-slate-200 ml-1">Email Address</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                   required
                   type="email"
                   placeholder="name@company.com"
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="app-input pl-12 pr-4 py-3.5"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-bold text-gray-700 ml-1">Password</label>
+              <label className="text-sm font-bold text-slate-200 ml-1">Password</label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
                   required
                   type="password"
                   placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="app-input pl-12 pr-4 py-3.5"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -117,7 +117,7 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="app-btn-primary-lg flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -130,8 +130,8 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-gray-100 text-center">
-            <p className="text-[10px] text-gray-400 uppercase tracking-[0.2em] font-black">Enterprise Grade Security</p>
+          <div className="mt-8 pt-8 border-t border-white/10 text-center">
+            <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">Enterprise Grade Security</p>
           </div>
         </div>
       </motion.div>

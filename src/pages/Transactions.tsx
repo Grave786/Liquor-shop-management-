@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
-import type { Outlet, Sale } from '../types';
+import type { Outlet, Product, Sale } from '../types';
 import { Clock, ShoppingCart } from 'lucide-react';
 
 const Transactions: React.FC = () => {
@@ -13,6 +13,7 @@ const Transactions: React.FC = () => {
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,13 +24,15 @@ const Transactions: React.FC = () => {
           ? `/api/sales?outletId=${encodeURIComponent(effectiveOutletId)}`
           : '/api/sales';
 
-        const [salesRes, outRes] = await Promise.all([
+        const [salesRes, outRes, prodRes] = await Promise.all([
           apiFetch(salesUrl),
           isAdmin ? apiFetch('/api/outlets') : Promise.resolve(null as any),
+          apiFetch('/api/products'),
         ]);
 
         if (salesRes.ok) setSales(await salesRes.json());
         if (outRes?.ok) setOutlets(await outRes.json());
+        if (prodRes.ok) setProducts(await prodRes.json());
       } catch (err) {
         console.error('Error fetching transactions:', err);
       } finally {
@@ -46,6 +49,12 @@ const Transactions: React.FC = () => {
     return map;
   }, [outlets]);
 
+  const productNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of products) map.set(p.id, p.name);
+    return map;
+  }, [products]);
+
   const selectedOutletName =
     isAdmin && outletIdParam
       ? (outletNameById.get(outletIdParam) || 'Selected Outlet')
@@ -55,8 +64,8 @@ const Transactions: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Transactions</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="app-h1">Transactions</h1>
+          <p className="app-subtitle">
             View sales history across outlets.
             {isAdmin && <span className="ml-2 text-gray-400">• {selectedOutletName}</span>}
           </p>
@@ -64,7 +73,7 @@ const Transactions: React.FC = () => {
 
         {isAdmin && (
           <select
-            className="text-sm border-gray-200 rounded-xl bg-gray-50 px-4 py-2.5 focus:ring-blue-500 focus:border-blue-500"
+            className="app-select"
             value={outletIdParam}
             onChange={(e) => {
               const next = e.target.value;
@@ -82,10 +91,10 @@ const Transactions: React.FC = () => {
         )}
       </header>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
-            <Clock size={18} className="text-blue-500" />
+      <div className="app-card">
+        <div className="app-card-header">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+            <Clock size={18} className="text-blue-600" />
             {loading ? 'Loading...' : `${sales.length} transaction(s)`}
           </div>
         </div>
@@ -101,35 +110,48 @@ const Transactions: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="app-table">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Time</th>
+                <tr>
+                  <th>Time</th>
                   {isAdmin && !outletIdParam && (
-                    <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Outlet</th>
+                    <th>Outlet</th>
                   )}
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Items</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Total</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                  <th>Products</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th>Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody>
                 {sales.map((sale) => {
                   const itemCount = (sale.items || []).reduce((sum, it) => sum + (it.quantity || 0), 0);
                   const outletName = outletNameById.get(sale.outletId) || sale.outletId;
+                  const items = sale.items || [];
+                  const preview = items.slice(0, 2).map((it) => {
+                    const name = productNameById.get(it.productId) || it.productId;
+                    return `${name} ×${it.quantity || 0}`;
+                  });
+                  const moreCount = Math.max(0, items.length - preview.length);
+                  const productsLabel = preview.join(', ') + (moreCount > 0 ? ` +${moreCount} more` : '');
                   return (
-                    <tr key={sale.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4">
+                    <tr key={sale.id}>
+                      <td>
                         <div className="text-sm font-bold text-gray-900">#{sale.id.slice(-6)}</div>
                         <div className="text-xs text-gray-500">{format(new Date(sale.timestamp), 'MMM dd, yyyy • h:mm a')}</div>
                       </td>
                       {isAdmin && !outletIdParam && (
-                        <td className="px-6 py-4 text-sm font-medium text-gray-700">{outletName}</td>
+                        <td className="text-sm font-medium text-gray-700">{outletName}</td>
                       )}
-                      <td className="px-6 py-4 text-sm font-medium text-gray-700">{itemCount} item(s)</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900">${(sale.totalAmount || 0).toFixed(2)}</td>
-                      <td className="px-6 py-4">
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full uppercase tracking-wider">
+                      <td className="text-sm font-medium text-gray-700">
+                        <div className="max-w-[420px] truncate" title={productsLabel}>
+                          {productsLabel || '—'}
+                        </div>
+                      </td>
+                      <td className="text-sm font-medium text-gray-700">{itemCount} item(s)</td>
+                      <td className="text-sm font-bold text-gray-900">${(sale.totalAmount || 0).toFixed(2)}</td>
+                      <td>
+                        <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-full uppercase tracking-wider">
                           Completed
                         </span>
                       </td>
@@ -146,4 +168,3 @@ const Transactions: React.FC = () => {
 };
 
 export default Transactions;
-

@@ -24,7 +24,7 @@ import {
   Tooltip, 
   ResponsiveContainer, 
 } from 'recharts';
-import { format, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { addDays, addHours, format, parseISO, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { profile, isAdmin } = useAuth();
@@ -36,7 +36,8 @@ const Dashboard: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rangeDays, setRangeDays] = useState<7 | 30>(7);
+  const [rangePreset, setRangePreset] = useState<'7d' | '30d' | 'custom'>('7d');
+  const [customDay, setCustomDay] = useState(() => format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,39 +74,95 @@ const Dashboard: React.FC = () => {
     }
   }, [isAdmin, outletIdParam, profile]);
 
-  const now = useMemo(() => new Date(), [rangeDays, sales]);
+  const now = useMemo(() => new Date(), [rangePreset, customDay, sales.length]);
+
+  const { currentStart, currentEnd, prevStart, prevEnd, rangeTitle, rangeDays } = useMemo(() => {
+    if (rangePreset === 'custom') {
+      const parsed = parseISO(customDay);
+      const selected = Number.isNaN(parsed.getTime()) ? now : parsed;
+      const start = startOfDay(selected);
+      const end = endOfDay(selected);
+      const prev = subDays(selected, 1);
+      return {
+        currentStart: start,
+        currentEnd: end,
+        prevStart: startOfDay(prev),
+        prevEnd: endOfDay(prev),
+        rangeTitle: format(selected, 'MMM dd, yyyy'),
+        rangeDays: 1 as const,
+      };
+    }
+
+    const days = rangePreset === '30d' ? 30 : 7;
+    const end = endOfDay(now);
+    const start = startOfDay(subDays(end, days - 1));
+    const prevEndDate = subDays(start, 1);
+    const prevStartDate = subDays(start, days);
+
+    return {
+      currentStart: start,
+      currentEnd: end,
+      prevStart: startOfDay(prevStartDate),
+      prevEnd: endOfDay(prevEndDate),
+      rangeTitle: `Last ${days} days`,
+      rangeDays: days as 7 | 30,
+    };
+  }, [customDay, now, rangePreset]);
+
+  const salesInRange = useMemo(() => {
+    return sales
+      .map((sale) => ({ sale, ts: new Date(sale.timestamp) }))
+      .filter(({ ts }) => !Number.isNaN(ts.getTime()) && isWithinInterval(ts, { start: currentStart, end: currentEnd }))
+      .sort((a, b) => b.ts.getTime() - a.ts.getTime())
+      .map(({ sale }) => sale);
+  }, [currentEnd, currentStart, sales]);
 
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>();
-    for (const sale of sales) {
+    for (const sale of salesInRange) {
       const ts = new Date(sale.timestamp);
       if (Number.isNaN(ts.getTime())) continue;
       const key = format(ts, 'yyyy-MM-dd');
       map.set(key, (map.get(key) || 0) + (sale.totalAmount || 0));
     }
     return map;
-  }, [sales]);
+  }, [salesInRange]);
+
+  const salesByHour = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const sale of salesInRange) {
+      const ts = new Date(sale.timestamp);
+      if (Number.isNaN(ts.getTime())) continue;
+      map.set(ts.getHours(), (map.get(ts.getHours()) || 0) + (sale.totalAmount || 0));
+    }
+    return map;
+  }, [salesInRange]);
 
   const chartData = useMemo(() => {
+    if (rangePreset === 'custom') {
+      return Array.from({ length: 24 }).map((_, hour) => {
+        const date = addHours(currentStart, hour);
+        return {
+          name: format(date, 'ha'),
+          sales: salesByHour.get(hour) || 0,
+        };
+      });
+    }
+
     return Array.from({ length: rangeDays }).map((_, i) => {
-      const date = subDays(now, rangeDays - 1 - i);
+      const date = addDays(currentStart, i);
       const key = format(date, 'yyyy-MM-dd');
       return {
         name: format(date, rangeDays === 30 ? 'MMM d' : 'MMM dd'),
         sales: salesByDay.get(key) || 0,
       };
     });
-  }, [now, rangeDays, salesByDay]);
+  }, [currentStart, rangeDays, rangePreset, salesByDay, salesByHour]);
 
   const lowStockCount = useMemo(() => inventory.reduce((sum, item) => sum + (item.quantity < 10 ? 1 : 0), 0), [inventory]);
   const totalProducts = products.length;
 
   const { totalSalesAmount, revenueTrend, revenueIsUp } = useMemo(() => {
-    const currentStart = startOfDay(subDays(now, rangeDays - 1));
-    const currentEnd = endOfDay(now);
-    const prevStart = startOfDay(subDays(now, rangeDays * 2 - 1));
-    const prevEnd = endOfDay(subDays(now, rangeDays));
-
     let currentRevenue = 0;
     let prevRevenue = 0;
 
@@ -122,13 +179,13 @@ const Dashboard: React.FC = () => {
     const label = `${isUp ? '+' : ''}${pct.toFixed(1)}%`;
 
     return { totalSalesAmount: currentRevenue, revenueTrend: label, revenueIsUp: isUp };
-  }, [now, rangeDays, sales]);
+  }, [currentEnd, currentStart, prevEnd, prevStart, sales]);
 
   const stats = [
-    { name: `Revenue (Last ${rangeDays}d)`, value: `$${totalSalesAmount.toLocaleString()}`, icon: DollarSign, color: 'bg-emerald-500', trend: revenueTrend, isUp: revenueIsUp },
-    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-500', trend: '—', isUp: true },
+    { name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`, value: `$${totalSalesAmount.toLocaleString()}`, icon: DollarSign, color: 'bg-green-500', trend: revenueTrend, isUp: revenueIsUp },
+    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-600', trend: '—', isUp: true },
     { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '—', isUp: false },
-    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-indigo-500', trend: '—', isUp: true },
+    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: '—', isUp: true },
   ];
 
   const selectedOutletName = useMemo(() => {
@@ -150,8 +207,8 @@ const Dashboard: React.FC = () => {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="app-h1">Dashboard</h1>
+          <p className="app-subtitle">
             Welcome back, {profile?.displayName || 'User'}. Here's what's happening today.
             {isAdmin && (
               <span className="ml-2 text-gray-400">- {selectedOutletName}</span>
@@ -163,7 +220,7 @@ const Dashboard: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest self-end sm:self-auto">Outlet View</p>
               <select
-                className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                className="app-select"
                 value={outletIdParam}
                 onChange={(e) => {
                   const next = e.target.value;
@@ -183,7 +240,7 @@ const Dashboard: React.FC = () => {
           <div className="flex flex-col sm:items-end">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Session</p>
             <p className="text-sm font-medium text-gray-700 flex items-center gap-2 justify-end mt-1">
-              <Clock size={16} className="text-blue-500" />
+              <Clock size={16} className="text-blue-600" />
               {format(new Date(), 'EEEE, MMMM do')}
             </p>
           </div>
@@ -209,7 +266,7 @@ const Dashboard: React.FC = () => {
                 stat.trend === '—'
                   ? "bg-gray-100 text-gray-600"
                   : stat.isUp
-                    ? "bg-emerald-50 text-emerald-600"
+                    ? "bg-green-50 text-green-700"
                     : "bg-red-50 text-red-600"
               )}>
                 {stat.trend !== '—' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
@@ -227,14 +284,29 @@ const Dashboard: React.FC = () => {
         <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-8">
             <h3 className="text-lg font-bold text-gray-900">Sales Performance</h3>
-            <select
-              className="text-sm border-gray-200 rounded-lg bg-gray-50 px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500"
-              value={rangeDays}
-              onChange={(e) => setRangeDays((parseInt(e.target.value, 10) === 30 ? 30 : 7) as 7 | 30)}
-            >
-              <option value={7}>Last 7 Days</option>
-              <option value={30}>Last 30 Days</option>
-            </select>
+            <div className="flex items-center gap-3">
+              <select
+                className="app-select"
+                value={rangePreset}
+                onChange={(e) => {
+                  const next = (e.target.value as any) as '7d' | '30d' | 'custom';
+                  setRangePreset(next);
+                }}
+              >
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="custom">Custom Day</option>
+              </select>
+              {rangePreset === 'custom' && (
+                <input
+                  type="date"
+                  className="app-select w-[170px]"
+                  value={customDay}
+                  max={format(new Date(), 'yyyy-MM-dd')}
+                  onChange={(e) => setCustomDay(e.target.value)}
+                />
+              )}
+            </div>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -246,7 +318,7 @@ const Dashboard: React.FC = () => {
                   tickLine={false} 
                   tick={{ fontSize: 12, fill: '#94a3b8' }} 
                   dy={10}
-                  interval={rangeDays === 30 ? 4 : 0}
+                  interval={rangePreset === '30d' ? 4 : rangePreset === 'custom' ? 1 : 0}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -260,9 +332,9 @@ const Dashboard: React.FC = () => {
                 />
                 <Bar 
                   dataKey="sales" 
-                  fill="#3b82f6" 
+                  fill="#2563eb" 
                   radius={[6, 6, 0, 0]} 
-                  barSize={rangeDays === 30 ? 14 : 40}
+                  barSize={rangePreset === '30d' ? 14 : rangePreset === 'custom' ? 12 : 40}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -272,7 +344,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
           <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Sales</h3>
           <div className="flex-1 space-y-6 overflow-y-auto pr-2">
-            {sales.slice(0, 5).map((sale, i) => (
+            {salesInRange.slice(0, 5).map((sale, i) => (
               <div key={sale.id} className="flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
@@ -285,11 +357,11 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-gray-900">${sale.totalAmount.toFixed(2)}</p>
-                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">Completed</p>
+                  <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Completed</p>
                 </div>
               </div>
             ))}
-            {sales.length === 0 && (
+            {salesInRange.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
                 <ShoppingCart size={48} className="opacity-20 mb-4" />
                 <p className="text-sm font-medium">No sales recorded yet</p>
