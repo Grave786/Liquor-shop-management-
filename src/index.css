@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+:root {
+  --app-bg:
+    radial-gradient(1200px circle at 20% 0%, rgb(59 130 246 / 14%), transparent 55%),
+    radial-gradient(900px circle at 85% 25%, rgb(99 102 241 / 12%), transparent 55%),
+    radial-gradient(700px circle at 60% 90%, rgb(16 185 129 / 10%), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #ffffff 40%, #f8fafc 100%);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--app-bg);
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100%;
+}

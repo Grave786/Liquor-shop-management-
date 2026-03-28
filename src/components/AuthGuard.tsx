@@ -11,7 +11,7 @@ export const AuthGuard: React.FC<{ children: React.ReactNode; requiredRole?: 'ad
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-transparent">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );

@@ -72,7 +72,7 @@ const Layout: React.FC = () => {
   }, [profile?.outletId, profile?.role, profile?.uid]);
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans">
+    <div className="flex min-h-screen bg-transparent text-gray-900 font-sans">
       {/* Sidebar */}
       <motion.aside
         initial={false}
