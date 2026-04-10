@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Product, InventoryItem, Outlet } from '../types';
@@ -40,7 +40,6 @@ const Inventory: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     category: CATEGORIES[0],
-    sku: '',
     unitPrice: 0,
     description: '',
     initialQuantity: 0,
@@ -183,7 +182,6 @@ const Inventory: React.FC = () => {
       setFormData({ 
         name: '', 
         category: CATEGORIES[0], 
-        sku: '', 
         unitPrice: 0, 
         description: '',
         initialQuantity: 0,
@@ -202,8 +200,8 @@ const Inventory: React.FC = () => {
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.sku.toLowerCase().includes(searchTerm.toLowerCase())) &&
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     (selectedCategory === 'All' || p.category === selectedCategory)
   );
 
@@ -241,7 +239,7 @@ const Inventory: React.FC = () => {
           <h1 className="app-h1">Inventory</h1>
           <p className="app-subtitle">
             Manage your product catalog and track stock levels.
-            {isAdmin && <span className="ml-2 text-gray-400">• {selectedOutletName}</span>}
+            {isAdmin && <span className="ml-2 text-gray-400">â€¢ {selectedOutletName}</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -271,7 +269,6 @@ const Inventory: React.FC = () => {
                 setFormData({ 
                   name: '', 
                   category: CATEGORIES[0], 
-                  sku: '', 
                   unitPrice: 0, 
                   description: '',
                   initialQuantity: 0,
@@ -292,13 +289,13 @@ const Inventory: React.FC = () => {
       <div className="app-card p-4 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search by name or SKU..."
-            className="app-input pl-10 pr-4 py-2 text-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+              <input
+                type="text"
+                placeholder="Search by name..."
+                className="app-input pl-10 pr-4 py-2 text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
         </div>
         <div className="flex gap-4">
           <div className="relative">
@@ -330,7 +327,7 @@ const Inventory: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.05 }}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-all duration-300"
+              className="app-card group hover:shadow-md transition-all duration-300"
             >
               <div className="p-6">
                 <div className="flex justify-between items-start mb-4">
@@ -339,17 +336,16 @@ const Inventory: React.FC = () => {
                   </div>
                   {isAdmin && (
                     <div className="relative group/menu">
-                      <button className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-50">
+                      <button className="p-1 rounded-md transition-colors app-muted hover:bg-[color:var(--app-icon-hover-bg)] hover:text-[color:var(--app-fg)]">
                         <MoreVertical size={18} />
                       </button>
-                      <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
+                      <div className="absolute right-0 top-full mt-1 w-32 rounded-xl shadow-xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
                         <button
                           onClick={() => {
                             setEditingProduct(product);
                             setFormData({
                               name: product.name,
                               category: product.category,
-                              sku: product.sku,
                               unitPrice: product.unitPrice,
                               description: product.description || '',
                               initialQuantity: 0,
@@ -357,7 +353,7 @@ const Inventory: React.FC = () => {
                             });
                             setIsModalOpen(true);
                           }}
-                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                          className="w-full px-4 py-2 text-left text-sm text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)] flex items-center gap-2"
                         >
                           <Edit2 size={14} /> Edit
                         </button>
@@ -372,16 +368,15 @@ const Inventory: React.FC = () => {
                   )}
                 </div>
 
-                <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
-                <p className="text-xs text-gray-400 font-medium mt-1">SKU: {product.sku}</p>
+                <h3 className="font-bold truncate">{product.name}</h3>
 
                 <div className="mt-6 flex items-end justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 font-medium">Unit Price</p>
-                    <p className="text-xl font-bold text-gray-900">${product.unitPrice.toFixed(2)}</p>
+                    <p className="text-xs font-medium app-muted">Unit Price</p>
+                    <p className="text-xl font-bold">${product.unitPrice.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-gray-500 font-medium">Stock</p>
+                    <p className="text-xs font-medium app-muted">Stock</p>
                     <div className={cn(
                       "flex items-center gap-1.5 font-bold text-lg",
                       isLowStock ? "text-amber-500" : "text-green-600"
@@ -392,9 +387,9 @@ const Inventory: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+              <div className="px-6 py-4 bg-[color:var(--app-secondary-bg)] border-t app-divider flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <span className="text-[10px] font-bold uppercase tracking-widest app-muted">
                     {isAdmin ? 'Global Stock' : 'Outlet Stock'}
                   </span>
                   {(isAdmin || isManager) && (
@@ -447,9 +442,7 @@ const Inventory: React.FC = () => {
                         <h2 className="text-2xl font-extrabold tracking-tight text-gray-900 truncate">
                           {selectedProductForDetails.name}
                         </h2>
-                        <p className="text-sm text-gray-500">
-                          {selectedProductForDetails.category} • SKU: {selectedProductForDetails.sku}
-                        </p>
+                        <p className="text-sm text-gray-500">{selectedProductForDetails.category}</p>
                       </div>
                     </div>
                     {selectedProductForDetails.description && (
@@ -594,7 +587,7 @@ const Inventory: React.FC = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-gray-700">Category</label>
                       <select
@@ -604,16 +597,6 @@ const Inventory: React.FC = () => {
                       >
                         {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                       </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-gray-700">SKU</label>
-                      <input
-                        required
-                        type="text"
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
-                        value={formData.sku}
-                        onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                      />
                     </div>
                   </div>
 
@@ -789,3 +772,4 @@ export default Inventory;
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
 }
+

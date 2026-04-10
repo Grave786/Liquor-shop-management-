@@ -52,13 +52,15 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, enum: ['super_admin', 'admin', 'manager', 'user', 'terminal'], default: 'user' },
   outletId: { type: String },
-  displayName: { type: String }
+  displayName: { type: String },
+  createdBy: { type: String }
 });
 
 const outletSchema = new mongoose.Schema({
   name: { type: String, required: true },
   location: { type: String, required: true },
   managerId: { type: String },
+  createdBy: { type: String },
   licenseNumber: { type: String },
   licenseValidUntil: { type: Date }
 });
@@ -66,7 +68,7 @@ const outletSchema = new mongoose.Schema({
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   category: { type: String, required: true },
-  sku: { type: String, required: true, unique: true },
+  sku: { type: String, unique: true, sparse: true },
   unitPrice: { type: Number, required: true },
   description: { type: String }
 });
@@ -109,6 +111,8 @@ const Product = mongoose.model('Product', productSchema);
 const Inventory = mongoose.model('Inventory', inventorySchema);
 const Sale = mongoose.model('Sale', saleSchema);
 const Transfer = mongoose.model('Transfer', transferSchema);
+
+const generateSku = () => `SKU-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 // --- Middleware ---
 
@@ -186,9 +190,10 @@ app.get('/api/users', authenticateToken, async (req: any, res: any) => {
   }
 
   const filter: any = {};
-  // Hide super admins from admin view ("admin activity")
+  // Admins can only see the managers/users they created
   if (role === 'admin') {
-    filter.role = { $ne: 'super_admin' };
+    filter.createdBy = String(req.user.id);
+    filter.role = { $in: ['manager', 'user'] };
   }
 
   const users = await User.find(filter, '-password');
@@ -226,11 +231,12 @@ app.post('/api/users', authenticateToken, async (req: any, res) => {
       password: hashedPassword,
       role,
       displayName: displayName || email.split('@')[0],
-      outletId
+      outletId,
+      createdBy: String(req.user.id)
     });
 
     await user.save();
-    res.status(201).json(user);
+    res.status(201).json({ uid: user._id, email: user.email, role: user.role, displayName: user.displayName, outletId: user.outletId });
   } catch (err) {
     res.status(500).json({ message: 'Error creating user' });
   }
@@ -251,6 +257,10 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
     if (creatorRole === 'super_admin') {
       // Super admin can update anyone
     } else if (creatorRole === 'admin') {
+      // Admin can only update users they created
+      if (String((targetUser as any).createdBy || '') !== String(req.user.id)) {
+        return res.status(403).json({ message: 'Admins can only modify users they created' });
+      }
       // Admin cannot update super admins or other admins
       if (['super_admin', 'admin'].includes(targetUser.role)) {
         return res.status(403).json({ message: 'Admins cannot modify super admins or other admins' });
@@ -267,8 +277,9 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
       req.body.password = await bcrypt.hash(req.body.password, 10);
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(user);
+    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ uid: user._id, email: user.email, role: user.role, displayName: user.displayName, outletId: user.outletId });
   } catch (err) {
     res.status(500).json({ message: 'Error updating user' });
   }
@@ -277,7 +288,29 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
 // Outlets
 app.get('/api/outlets', authenticateToken, async (req, res) => {
   try {
-    const outlets = await Outlet.find();
+    const role = (req as any).user?.role;
+    const userId = String((req as any).user?.id || '');
+
+    const filter: any = {};
+    if (role === 'super_admin') {
+      // super admin sees everything
+    } else if (role === 'admin') {
+      // admins only see outlets they created
+      filter.createdBy = userId;
+    } else {
+      // managers/users/terminal only see their assigned outlet (or the outlet they manage)
+      const actingUser = await User.findById(userId).select('outletId');
+      const outletId = String((actingUser as any)?.outletId || '');
+
+      if (!outletId) {
+        // Allow manager visibility via managerId even without outletId set
+        filter.managerId = userId;
+      } else {
+        filter.$or = [{ _id: outletId }, { managerId: userId }];
+      }
+    }
+
+    const outlets = await Outlet.find(filter);
     res.json(outlets.map(o => ({
       id: o._id,
       name: o.name,
@@ -296,6 +329,8 @@ app.post('/api/outlets', authenticateToken, async (req, res) => {
     if (!['super_admin', 'admin'].includes((req as any).user?.role)) {
       return res.status(403).json({ message: 'Unauthorized to create outlets' });
     }
+
+    (req as any).body.createdBy = String((req as any).user?.id || '');
 
     const managerId = typeof req.body?.managerId === 'string' ? req.body.managerId.trim() : '';
     if (managerId) {
@@ -336,6 +371,10 @@ app.patch('/api/outlets/:id', authenticateToken, async (req, res) => {
 
     const outlet = await Outlet.findById(req.params.id);
     if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
+
+    if ((req as any).user?.role === 'admin' && String((outlet as any).createdBy || '') !== String((req as any).user?.id || '')) {
+      return res.status(403).json({ message: 'Admins can only modify outlets they created' });
+    }
 
     const oldManagerId = (outlet as any).managerId as string | undefined;
     const nextManagerIdRaw = req.body?.managerId;
@@ -386,6 +425,13 @@ app.delete('/api/outlets/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized to delete outlets' });
     }
 
+    const outlet = await Outlet.findById(req.params.id);
+    if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
+
+    if ((req as any).user?.role === 'admin' && String((outlet as any).createdBy || '') !== String((req as any).user?.id || '')) {
+      return res.status(403).json({ message: 'Admins can only delete outlets they created' });
+    }
+
     await Outlet.findByIdAndDelete(req.params.id);
     res.status(204).send();
   } catch (err: any) {
@@ -405,8 +451,24 @@ app.get('/api/products', authenticateToken, async (req, res) => {
 
 app.post('/api/products', authenticateToken, async (req, res) => {
   try {
+    if (typeof (req as any).body?.sku === 'string' && (req as any).body.sku.trim() === '') {
+      delete (req as any).body.sku;
+    }
+    const skuWasProvided = Object.prototype.hasOwnProperty.call((req as any).body || {}, 'sku');
+
     const product = new Product(req.body);
-    await product.save();
+    try {
+      await product.save();
+    } catch (err: any) {
+      const isDupSku = err?.code === 11000 && (err?.keyPattern?.sku || err?.keyValue?.sku);
+      if (!skuWasProvided && isDupSku) {
+        (product as any).sku = generateSku();
+        await product.save();
+      } else {
+        throw err;
+      }
+    }
+
     res.status(201).json({ id: product._id, name: product.name, category: product.category, sku: product.sku, unitPrice: product.unitPrice, description: product.description });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -415,6 +477,9 @@ app.post('/api/products', authenticateToken, async (req, res) => {
 
 app.patch('/api/products/:id', authenticateToken, async (req, res) => {
   try {
+    if (typeof (req as any).body?.sku === 'string' && (req as any).body.sku.trim() === '') {
+      delete (req as any).body.sku;
+    }
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json({ id: product._id, name: product.name, category: product.category, sku: product.sku, unitPrice: product.unitPrice, description: product.description });

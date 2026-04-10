@@ -286,7 +286,7 @@ const StockTransfers: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
                     >
                       <option value="">Select a Product</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
 

@@ -10,13 +10,16 @@ import {
   LogOut, 
   Menu, 
   X,
-  ChevronRight
+  ChevronRight,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { apiFetch } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useTheme } from '../ThemeContext';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -24,6 +27,7 @@ function cn(...inputs: ClassValue[]) {
 
 const Layout: React.FC = () => {
   const { profile, isAdmin, isSuperAdmin, isManager, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [managerOutletLabel, setManagerOutletLabel] = useState<string>('');
   const navigate = useNavigate();
@@ -72,12 +76,12 @@ const Layout: React.FC = () => {
   }, [profile?.outletId, profile?.role, profile?.uid]);
 
   return (
-    <div className="flex min-h-screen bg-transparent text-slate-200 font-sans">
+    <div className="flex min-h-screen bg-transparent font-sans">
       {/* Sidebar */}
       <motion.aside
         initial={false}
         animate={{ width: isSidebarOpen ? 260 : 80 }}
-        className="fixed inset-y-0 left-0 bg-slate-800 border-r border-white/10 z-50 flex flex-col shadow-xl shadow-black/30"
+        className="fixed inset-y-0 left-0 z-50 flex flex-col app-sidebar"
       >
         <div className="p-6 flex items-center justify-between">
           <AnimatePresence mode="wait">
@@ -87,7 +91,7 @@ const Layout: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="font-bold text-xl tracking-tight text-blue-400 truncate"
+                className="font-bold text-xl tracking-tight truncate"
               >
                 InventoryPro
               </motion.h1>
@@ -105,7 +109,7 @@ const Layout: React.FC = () => {
           </AnimatePresence>
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+            className="p-2 rounded-xl transition-colors app-sidebar-action"
           >
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -118,14 +122,13 @@ const Layout: React.FC = () => {
               to={item.path}
               className={({ isActive }) => cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
-                isActive 
-                  ? "bg-white/10 text-slate-100 font-bold" 
-                  : "text-slate-300 hover:bg-white/5"
+                "app-sidebar-link",
+                isActive && "is-active"
               )}
             >
               <item.icon size={22} className={cn(
                 "shrink-0 transition-colors",
-                "group-hover:text-slate-100"
+                "group-hover:opacity-100"
               )} />
               {isSidebarOpen && (
                 <motion.span
@@ -140,29 +143,46 @@ const Layout: React.FC = () => {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 space-y-3">
           {isSidebarOpen && (
-            <div className="mb-4 px-3 py-2 bg-white/5 rounded-2xl border border-white/10">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">User</p>
-              <p className="text-sm font-medium truncate text-slate-100">{profile?.displayName || profile?.email}</p>
+            <div className="mb-4 px-3 py-2 rounded-2xl app-sidebar-userbox">
+              <p className="text-xs font-semibold uppercase tracking-wider app-sidebar-muted">User</p>
+              <p className="text-sm font-medium truncate">{profile?.displayName || profile?.email}</p>
               <p className="text-[10px] font-bold text-blue-400 uppercase">{profile?.role.replace('_', ' ')}</p>
               {profile?.role === 'manager' && managerOutletLabel && (
-                <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 truncate">
+                <p className="text-[10px] font-bold uppercase mt-1 truncate app-sidebar-muted">
                   Outlet: {managerOutletLabel}
                 </p>
               )}
             </div>
           )}
-          <button
-            onClick={handleLogout}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-300 hover:bg-red-500/10 transition-colors",
-              !isSidebarOpen && "justify-center"
-            )}
-          >
-            <LogOut size={22} />
-            {isSidebarOpen && <span>Logout</span>}
-          </button>
+
+          <div className={cn("p-2 rounded-2xl app-sidebar-userbox", !isSidebarOpen && "p-1")}>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
+                "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]",
+                !isSidebarOpen && "justify-center px-2"
+              )}
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              {isSidebarOpen && <span className="font-semibold">{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors mt-1",
+                "app-sidebar-logout",
+                !isSidebarOpen && "justify-center px-2"
+              )}
+            >
+              <LogOut size={20} />
+              {isSidebarOpen && <span className="font-semibold">Logout</span>}
+            </button>
+          </div>
         </div>
       </motion.aside>
 

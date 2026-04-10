@@ -8,10 +8,16 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
 };
 
 export const CATEGORIES = [
-  'Electronics',
-  'Groceries',
-  'Clothing',
-  'Home & Kitchen',
-  'Beauty & Health',
+  'Beer',
+  'Wine',
+  'Whiskey',
+  'Vodka',
+  'Rum',
+  'Gin',
+  'Tequila',
+  'Brandy',
+  'Champagne',
+  'Liqueur',
+  'Ready-to-Drink (RTD)',
   'Others',
 ];

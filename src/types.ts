@@ -21,7 +21,7 @@ export interface Product {
   id: string;
   name: string;
   category: string;
-  sku: string;
+  sku?: string;
   unitPrice: number;
   description?: string;
 }

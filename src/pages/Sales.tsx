@@ -148,8 +148,7 @@ const Sales: React.FC = () => {
   };
 
   const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -163,13 +162,13 @@ const Sales: React.FC = () => {
 
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search products by name or SKU..."
-            className="app-input pl-12 pr-4 py-4"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+            <input
+              type="text"
+              placeholder="Search products by name..."
+              className="app-input pl-12 pr-4 py-4"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
         </div>
 
         <div className="flex-1 overflow-y-auto pr-2 space-y-4">
@@ -184,9 +183,9 @@ const Sales: React.FC = () => {
                   onClick={() => addToCart(product)}
                   disabled={stock === 0}
                   className={cn(
-                    "p-5 text-left bg-white/90 rounded-2xl border transition-all duration-200 group relative",
+                    "p-5 text-left rounded-2xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] text-[color:var(--app-fg)] transition-all duration-200 group relative",
                     stock === 0 ? "opacity-50 grayscale cursor-not-allowed" : "hover:border-blue-600 hover:shadow-lg hover:shadow-blue-600/10",
-                    inCart ? "border-blue-600 ring-1 ring-blue-600/20" : "border-slate-200/70"
+                    inCart ? "border-blue-600 ring-1 ring-blue-600/20" : ""
                   )}
                 >
                   <div className="flex justify-between items-start mb-3">
@@ -199,11 +198,10 @@ const Sales: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
-                  <p className="text-xs text-gray-400 font-medium mt-1">SKU: {product.sku}</p>
-                  
+                  <h3 className="font-bold truncate">{product.name}</h3>
+                   
                   <div className="mt-4 flex items-end justify-between">
-                    <p className="text-lg font-bold text-gray-900">${product.unitPrice.toFixed(2)}</p>
+                    <p className="text-lg font-bold">${product.unitPrice.toFixed(2)}</p>
                     <p className={cn(
                       "text-xs font-bold",
                       stock < 10 ? "text-amber-500" : "text-green-600"
@@ -225,7 +223,7 @@ const Sales: React.FC = () => {
             <div className="p-2 bg-blue-600 text-white rounded-xl">
               <ShoppingCart size={20} />
             </div>
-            <h2 className="font-bold text-gray-900">Current Order</h2>
+            <h2 className="font-bold">Current Order</h2>
           </div>
           <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full">
             {cart.reduce((sum, i) => sum + i.quantity, 0)} items
@@ -250,20 +248,20 @@ const Sales: React.FC = () => {
                     <Package size={24} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{product.name}</p>
-                    <p className="text-xs text-gray-500">${product.unitPrice.toFixed(2)} each</p>
+                    <p className="text-sm font-bold truncate">{product.name}</p>
+                    <p className="text-xs app-muted">${product.unitPrice.toFixed(2)} each</p>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
                     <button 
                       onClick={() => updateQuantity(item.productId, -1)}
-                      className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-gray-500"
+                      className="p-1 rounded transition-all app-muted hover:bg-[color:var(--app-icon-hover-bg)] hover:text-[color:var(--app-fg)]"
                     >
                       <Minus size={14} />
                     </button>
                     <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
                     <button 
                       onClick={() => updateQuantity(item.productId, 1)}
-                      className="p-1 hover:bg-white hover:shadow-sm rounded transition-all text-gray-500"
+                      className="p-1 rounded transition-all app-muted hover:bg-[color:var(--app-icon-hover-bg)] hover:text-[color:var(--app-fg)]"
                     >
                       <Plus size={14} />
                     </button>
@@ -334,7 +332,7 @@ const Sales: React.FC = () => {
             <span>$0.00</span>
           </div>
           <div className="flex justify-between items-center pt-2">
-            <span className="text-lg font-bold text-gray-900">Total</span>
+            <span className="text-lg font-bold">Total</span>
             <span className="text-2xl font-black text-blue-700">${totalAmount.toFixed(2)}</span>
           </div>
           <button

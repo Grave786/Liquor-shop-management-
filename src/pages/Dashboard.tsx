@@ -1,28 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Sale, InventoryItem, Product, Outlet } from '../types';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  TrendingUp, 
-  Package, 
-  AlertTriangle, 
-  Store, 
-  ArrowUpRight, 
+import {
+  TrendingUp,
+  Package,
+  AlertTriangle,
+  ArrowUpRight,
   ArrowDownRight,
   Clock,
   DollarSign,
-  ShoppingCart
+  ShoppingCart,
+  Minus,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from 'recharts';
 import { addDays, addHours, format, parseISO, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
@@ -54,7 +54,7 @@ const Dashboard: React.FC = () => {
           apiFetch(salesUrl),
           apiFetch(invUrl),
           apiFetch('/api/products'),
-          isAdmin ? apiFetch('/api/outlets') : Promise.resolve(null as any)
+          isAdmin ? apiFetch('/api/outlets') : Promise.resolve(null as any),
         ]);
 
         if (salesRes.ok) setSales(await salesRes.json());
@@ -182,10 +182,17 @@ const Dashboard: React.FC = () => {
   }, [currentEnd, currentStart, prevEnd, prevStart, sales]);
 
   const stats = [
-    { name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`, value: `$${totalSalesAmount.toLocaleString()}`, icon: DollarSign, color: 'bg-green-500', trend: revenueTrend, isUp: revenueIsUp },
-    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-600', trend: '—', isUp: true },
-    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '—', isUp: false },
-    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: '—', isUp: true },
+    {
+      name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`,
+      value: `$${totalSalesAmount.toLocaleString()}`,
+      icon: DollarSign,
+      color: 'bg-green-500',
+      trend: revenueTrend,
+      isUp: revenueIsUp,
+    },
+    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-600', trend: 'â€”', isUp: true },
+    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: 'â€”', isUp: false },
+    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: 'â€”', isUp: true },
   ];
 
   const selectedOutletName = useMemo(() => {
@@ -195,12 +202,16 @@ const Dashboard: React.FC = () => {
   }, [isAdmin, outletIdParam, outlets]);
 
   if (loading) {
-    return <div className="animate-pulse space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-gray-200 rounded-2xl" />)}
+    return (
+      <div className="animate-pulse space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 app-card opacity-60" />
+          ))}
+        </div>
+        <div className="h-96 app-card opacity-60" />
       </div>
-      <div className="h-96 bg-gray-200 rounded-2xl" />
-    </div>;
+    );
   }
 
   return (
@@ -210,15 +221,14 @@ const Dashboard: React.FC = () => {
           <h1 className="app-h1">Dashboard</h1>
           <p className="app-subtitle">
             Welcome back, {profile?.displayName || 'User'}. Here's what's happening today.
-            {isAdmin && (
-              <span className="ml-2 text-gray-400">- {selectedOutletName}</span>
-            )}
+            {isAdmin && <span className="ml-2 app-muted">- {selectedOutletName}</span>}
           </p>
         </div>
+
         <div className="text-right space-y-3 w-full sm:w-auto">
           {isAdmin && (
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest self-end sm:self-auto">Outlet View</p>
+              <p className="text-xs font-bold uppercase tracking-widest self-end sm:self-auto app-muted">Outlet View</p>
               <select
                 className="app-select"
                 value={outletIdParam}
@@ -231,15 +241,18 @@ const Dashboard: React.FC = () => {
                 }}
               >
                 <option value="">All Outlets</option>
-                {outlets.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
+                {outlets.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
                 ))}
               </select>
             </div>
           )}
+
           <div className="flex flex-col sm:items-end">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Current Session</p>
-            <p className="text-sm font-medium text-gray-700 flex items-center gap-2 justify-end mt-1">
+            <p className="text-xs font-bold uppercase tracking-widest app-muted">Current Session</p>
+            <p className="text-sm font-medium flex items-center gap-2 justify-end mt-1">
               <Clock size={16} className="text-blue-600" />
               {format(new Date(), 'EEEE, MMMM do')}
             </p>
@@ -247,7 +260,6 @@ const Dashboard: React.FC = () => {
         </div>
       </header>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
           <motion.div
@@ -255,35 +267,48 @@ const Dashboard: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200"
+            className="app-card p-6 hover:shadow-md transition-shadow duration-200"
           >
             <div className="flex justify-between items-start mb-4">
-              <div className={cn("p-3 rounded-xl text-white", stat.color)}>
+              <div className={cn('p-3 rounded-xl text-white', stat.color)}>
                 <stat.icon size={24} />
               </div>
-              <div className={cn(
-                "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
-                stat.trend === '—'
-                  ? "bg-gray-100 text-gray-600"
-                  : stat.isUp
-                    ? "bg-green-50 text-green-700"
-                    : "bg-red-50 text-red-600"
-              )}>
-                {stat.trend !== '—' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
-                {stat.trend}
+
+              <div className="flex items-center gap-2">
+                <div
+                  className={cn(
+                    'flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full',
+                    stat.trend === 'â€”'
+                      ? 'bg-[color:var(--app-secondary-bg)] text-[color:var(--app-muted)]'
+                      : stat.isUp
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-red-50 text-red-600'
+                  )}
+                >
+                  {stat.trend !== 'â€”' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
+                  {stat.trend}
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Card options"
+                  className="w-7 h-7 rounded-full grid place-items-center bg-[color:var(--app-secondary-bg)] text-[color:var(--app-muted)]"
+                >
+                  <Minus size={14} />
+                </button>
               </div>
             </div>
-            <p className="text-sm font-medium text-gray-500">{stat.name}</p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+
+            <p className="text-sm font-medium app-muted">{stat.name}</p>
+            <p className="text-2xl font-bold mt-1">{stat.value}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+        <div className="lg:col-span-2 app-card p-8">
           <div className="flex justify-between items-center mb-8">
-            <h3 className="text-lg font-bold text-gray-900">Sales Performance</h3>
+            <h3 className="text-lg font-bold">Sales Performance</h3>
             <div className="flex items-center gap-3">
               <select
                 className="app-select"
@@ -308,32 +333,33 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           </div>
+
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: '#94a3b8' }}
                   dy={10}
                   interval={rangePreset === '30d' ? 4 : rangePreset === 'custom' ? 1 : 0}
                 />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 12, fill: '#94a3b8' }} 
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 12, fill: '#94a3b8' }}
                   tickFormatter={(value) => `$${value}`}
                 />
-                <Tooltip 
-                  cursor={{ fill: '#f8fafc' }}
+                <Tooltip
+                  cursor={{ fill: 'rgba(2,6,23,0.03)' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar 
-                  dataKey="sales" 
-                  fill="#2563eb" 
-                  radius={[6, 6, 0, 0]} 
+                <Bar
+                  dataKey="sales"
+                  fill="#2563eb"
+                  radius={[6, 6, 0, 0]}
                   barSize={rangePreset === '30d' ? 14 : rangePreset === 'custom' ? 12 : 40}
                 />
               </BarChart>
@@ -341,40 +367,42 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Sales</h3>
+        <div className="app-card p-8 flex flex-col">
+          <h3 className="text-lg font-bold mb-6">Recent Sales</h3>
           <div className="flex-1 space-y-6 overflow-y-auto pr-2">
-            {salesInRange.slice(0, 5).map((sale, i) => (
+            {salesInRange.slice(0, 5).map((sale) => (
               <div key={sale.id} className="flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
                     {sale.userId.slice(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-gray-900">Sale #{sale.id.slice(-4)}</p>
-                    <p className="text-xs text-gray-500">{format(new Date(sale.timestamp), 'h:mm a')}</p>
+                    <p className="text-sm font-bold">Sale #{sale.id.slice(-4)}</p>
+                    <p className="text-xs app-muted">{format(new Date(sale.timestamp), 'h:mm a')}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">${sale.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm font-bold">${sale.totalAmount.toFixed(2)}</p>
                   <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Completed</p>
                 </div>
               </div>
             ))}
+
             {salesInRange.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
+              <div className="flex flex-col items-center justify-center h-full app-muted py-12">
                 <ShoppingCart size={48} className="opacity-20 mb-4" />
                 <p className="text-sm font-medium">No sales recorded yet</p>
               </div>
             )}
           </div>
+
           <button
             type="button"
             onClick={() => {
               const qs = outletIdParam ? `?outletId=${encodeURIComponent(outletIdParam)}` : '';
               navigate(`/transactions${qs}`);
             }}
-            className="mt-8 w-full py-3 text-sm font-bold text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+            className="mt-8 w-full py-3 text-sm font-bold text-blue-700 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
           >
             View All Transactions
           </button>
