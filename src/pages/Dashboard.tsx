@@ -182,6 +182,12 @@ const Dashboard: React.FC = () => {
     return { totalSalesAmount: currentRevenue, revenueTrend: label, revenueIsUp: isUp };
   }, [currentEnd, currentStart, prevEnd, prevStart, sales]);
 
+  const productPriceById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of products) map.set(p.id, Number(p.unitPrice || 0));
+    return map;
+  }, [products]);
+
   const stats = [
     {
       name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`,
@@ -191,7 +197,20 @@ const Dashboard: React.FC = () => {
       trend: revenueTrend,
       isUp: revenueIsUp,
     },
-    { name: 'Inventory Rows', value: inventory.length.toString(), icon: Package, color: 'bg-blue-600', trend: 'â€”', isUp: true },
+    {
+      name: 'Inventory Value',
+      value: (() => {
+        const total = inventory.reduce((sum, item) => {
+          const price = productPriceById.get(item.productId) ?? 0;
+          return sum + (Number(item.quantity || 0) * Number(price || 0));
+        }, 0);
+        return `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      })(),
+      icon: Package,
+      color: 'bg-blue-600',
+      trend: 'â€”',
+      isUp: true,
+    },
     { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: 'â€”', isUp: false },
     { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: 'â€”', isUp: true },
   ];
