@@ -5,7 +5,6 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
 
@@ -16,12 +15,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here';
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-const getMongoUri = () => {
+// MongoDB Connection (serverless-safe)
+const getMongoUriFromEnv = () => {
   const envUri = (process.env.MONGO_URI || '').trim().replace(/^["']|["']$/g, '');
 
   if (!envUri) {
-    throw new Error('Missing MONGO_URI. Set it in your .env file.');
+    throw new Error('Missing MONGO_URI. Set it in your environment variables.');
   }
 
   if (envUri.startsWith('mongodb://') || envUri.startsWith('mongodb+srv://')) {
@@ -31,19 +30,28 @@ const getMongoUri = () => {
   throw new Error('Invalid MONGO_URI. It must start with mongodb:// or mongodb+srv://');
 };
 
-let MONGO_URI = '';
-try {
-  MONGO_URI = getMongoUri();
-} catch (err: any) {
-  console.error(err?.message || 'Invalid MongoDB configuration.');
-  process.exit(1);
-}
+let mongoConnectPromise: Promise<typeof mongoose> | null = null;
+const connectMongo = async () => {
+  if (mongoose.connection.readyState === 1) return;
+  if (!mongoConnectPromise) {
+    const uri = getMongoUriFromEnv();
+    mongoConnectPromise = mongoose.connect(uri).catch((err) => {
+      mongoConnectPromise = null;
+      throw err;
+    });
+  }
+  await mongoConnectPromise;
+};
 
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => {
+app.use('/api', async (_req, res, next) => {
+  try {
+    await connectMongo();
+    next();
+  } catch (err) {
     console.error('MongoDB connection error:', err);
-  });
+    res.status(500).json({ message: 'Database connection error' });
+  }
+});
 
 // --- Schemas ---
 
@@ -828,11 +836,23 @@ app.delete('/api/transfers/:id', authenticateToken, async (req: any, res: any) =
   }
 });
 
+// JSON 404 for API routes (prevents frontend JSON parse failures)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ message: 'Not found' });
+});
+
+// JSON error handler for API routes
+app.use((err: any, _req: any, res: any, _next: any) => {
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ message: 'Internal server error' });
+});
+
 // --- Vite Integration ---
 
-async function startServer() {
+export async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
+    const { createServer } = await import('vite');
+    const vite = await createServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
@@ -850,4 +870,9 @@ async function startServer() {
   });
 }
 
-startServer();
+export { app };
+
+// In Vercel serverless, the module is imported as a handler and must not open a listener.
+if (!process.env.VERCEL) {
+  startServer();
+}

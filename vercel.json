@@ -1,12 +1,8 @@
 {
-  "rewrites": [
-    {
-      "source": "/api",
-      "destination": "https://liquor-shop-management.onrender.com/api"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "https://liquor-shop-management.onrender.com/api/$1"
+  "version": 2,
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 30
     }
-  ]
+  }
 }
