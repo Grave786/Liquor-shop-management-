@@ -91,9 +91,16 @@ const Layout: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="font-bold text-xl tracking-tight truncate"
+                className="font-bold text-xl tracking-tight flex items-center gap-2"
               >
-                InventoryPro
+                <span
+                  aria-hidden="true"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[color:var(--app-accent-soft-2)] text-[color:var(--app-accent)] font-black"
+                >
+                  L
+                </span>
+                <span className="truncate min-w-0 text-[color:var(--sidebar-link-hover)]">LiquorLedger</span>
+                <span aria-hidden="true" className="flex-none opacity-80 text-[color:var(--sidebar-link-hover)] text-base leading-none">◆</span>
               </motion.h1>
             ) : (
               <motion.div
@@ -101,9 +108,9 @@ const Layout: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold"
+                className="w-8 h-8 rounded-lg flex items-center justify-center font-black bg-[color:var(--app-accent)] text-[color:var(--app-accent-contrast)]"
               >
-                IP
+                LL
               </motion.div>
             )}
           </AnimatePresence>
@@ -163,7 +170,7 @@ const Layout: React.FC = () => {
               onClick={toggleTheme}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors",
-                "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]",
+                "app-sidebar-action",
                 !isSidebarOpen && "justify-center px-2"
               )}
             >

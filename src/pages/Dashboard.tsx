@@ -16,8 +16,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
-  BarChart,
+  ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -336,7 +337,7 @@ const Dashboard: React.FC = () => {
 
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
+              <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis
                   dataKey="name"
@@ -358,11 +359,20 @@ const Dashboard: React.FC = () => {
                 />
                 <Bar
                   dataKey="sales"
-                  fill="#2563eb"
+                  fill="#7c3aed"
+                  fillOpacity={0.22}
                   radius={[6, 6, 0, 0]}
                   barSize={rangePreset === '30d' ? 14 : rangePreset === 'custom' ? 12 : 40}
                 />
-              </BarChart>
+                <Line
+                  dataKey="sales"
+                  type="monotone"
+                  stroke="#a855f7"
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>

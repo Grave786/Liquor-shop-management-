@@ -15,7 +15,9 @@ import {
   AlertCircle,
   ChevronDown,
   Minus,
-  X
+  X,
+  LayoutGrid,
+  Table2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -35,6 +37,14 @@ const Inventory: React.FC = () => {
   const [selectedProductForStock, setSelectedProductForStock] = useState<Product | null>(null);
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    try {
+      const saved = localStorage.getItem('inventory:viewMode');
+      return saved === 'table' ? 'table' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -201,7 +211,9 @@ const Inventory: React.FC = () => {
   };
 
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(searchTerm.toLowerCase())) &&
     (selectedCategory === 'All' || p.category === selectedCategory)
   );
 
@@ -291,13 +303,51 @@ const Inventory: React.FC = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Search by name..."
+                placeholder="Search by name, category, or description..."
                 className="app-input pl-10 pr-4 py-2 text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
         </div>
         <div className="flex gap-4">
+          <div className="flex items-center rounded-xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                try { localStorage.setItem('inventory:viewMode', 'grid'); } catch {}
+              }}
+              className={cn(
+                "px-3 py-2 text-xs font-bold flex items-center gap-2 transition-colors",
+                viewMode === 'grid'
+                  ? "bg-blue-600 text-white"
+                  : "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]"
+              )}
+              aria-pressed={viewMode === 'grid'}
+              aria-label="Grid view"
+            >
+              <LayoutGrid size={16} />
+              Grid
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                try { localStorage.setItem('inventory:viewMode', 'table'); } catch {}
+              }}
+              className={cn(
+                "px-3 py-2 text-xs font-bold flex items-center gap-2 transition-colors",
+                viewMode === 'table'
+                  ? "bg-blue-600 text-white"
+                  : "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]"
+              )}
+              aria-pressed={viewMode === 'table'}
+              aria-label="Table view"
+            >
+              <Table2 size={16} />
+              Table
+            </button>
+          </div>
           <div className="relative">
             <select
               className="app-select appearance-none pl-4 pr-10 py-2 text-sm font-medium text-gray-700 cursor-pointer"
@@ -315,104 +365,208 @@ const Inventory: React.FC = () => {
         </div>
       </div>
 
-      {/* Product Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map((product, i) => {
-          const stock = getStockForProduct(product.id);
-          const isLowStock = stock < 10;
+      {viewMode === 'grid' ? (
+        /* Product Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredProducts.map((product, i) => {
+            const stock = getStockForProduct(product.id);
+            const isLowStock = stock < 10;
 
-          return (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              className="app-card group hover:shadow-md transition-all duration-300"
-            >
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded tracking-wider">
-                    {product.category}
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
+                className="app-card group hover:shadow-md transition-all duration-300"
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded tracking-wider">
+                      {product.category}
+                    </div>
+                    {isAdmin && (
+                      <div className="relative group/menu">
+                        <button className="p-1 rounded-md transition-colors app-muted hover:bg-[color:var(--app-icon-hover-bg)] hover:text-[color:var(--app-fg)]">
+                          <MoreVertical size={18} />
+                        </button>
+                        <div className="absolute right-0 top-full mt-1 w-32 rounded-xl shadow-xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
+                          <button
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setFormData({
+                                name: product.name,
+                                category: product.category,
+                                unitPrice: product.unitPrice,
+                                description: product.description || '',
+                                initialQuantity: 0,
+                                outletId: getDefaultOutletId()
+                              });
+                              setIsModalOpen(true);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)] flex items-center gap-2"
+                          >
+                            <Edit2 size={14} /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <div className="relative group/menu">
-                      <button className="p-1 rounded-md transition-colors app-muted hover:bg-[color:var(--app-icon-hover-bg)] hover:text-[color:var(--app-fg)]">
-                        <MoreVertical size={18} />
-                      </button>
-                      <div className="absolute right-0 top-full mt-1 w-32 rounded-xl shadow-xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
-                        <button
-                          onClick={() => {
-                            setEditingProduct(product);
-                            setFormData({
-                              name: product.name,
-                              category: product.category,
-                              unitPrice: product.unitPrice,
-                              description: product.description || '',
-                              initialQuantity: 0,
-                              outletId: profile?.outletId || ''
-                            });
-                            setIsModalOpen(true);
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)] flex items-center gap-2"
-                        >
-                          <Edit2 size={14} /> Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(product.id)}
-                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                          <Trash2 size={14} /> Delete
-                        </button>
+
+                  <h3 className="font-bold truncate">{product.name}</h3>
+
+                  <div className="mt-6 flex items-end justify-between">
+                    <div>
+                      <p className="text-xs font-medium app-muted">Unit Price</p>
+                      <p className="text-xl font-bold">${product.unitPrice.toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-medium app-muted">Stock</p>
+                      <div className={cn(
+                        "flex items-center gap-1.5 font-bold text-lg",
+                        isLowStock ? "text-amber-500" : "text-green-600"
+                      )}>
+                        {isLowStock && <AlertCircle size={16} />}
+                        {stock}
                       </div>
                     </div>
-                  )}
-                </div>
-
-                <h3 className="font-bold truncate">{product.name}</h3>
-
-                <div className="mt-6 flex items-end justify-between">
-                  <div>
-                    <p className="text-xs font-medium app-muted">Unit Price</p>
-                    <p className="text-xl font-bold">${product.unitPrice.toFixed(2)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-medium app-muted">Stock</p>
-                    <div className={cn(
-                      "flex items-center gap-1.5 font-bold text-lg",
-                      isLowStock ? "text-amber-500" : "text-green-600"
-                    )}>
-                      {isLowStock && <AlertCircle size={16} />}
-                      {stock}
-                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="px-6 py-4 bg-[color:var(--app-secondary-bg)] border-t app-divider flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-widest app-muted">
-                    {isAdmin ? 'Global Stock' : 'Outlet Stock'}
-                  </span>
-                  {(isAdmin || isManager) && (
-                    <button 
-                      onClick={() => handleOpenStockModal(product)}
-                      className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-widest"
-                    >
-                      Adjust Stock
-                    </button>
-                  )}
+                <div className="px-6 py-4 bg-[color:var(--app-secondary-bg)] border-t app-divider flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold uppercase tracking-widest app-muted">
+                      {isAdmin ? 'Global Stock' : 'Outlet Stock'}
+                    </span>
+                    {(isAdmin || isManager) && (
+                      <button 
+                        onClick={() => handleOpenStockModal(product)}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-700 uppercase tracking-widest"
+                      >
+                        Adjust Stock
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenDetails(product)}
+                    className="text-xs font-bold text-blue-600 hover:underline"
+                  >
+                    View Details
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleOpenDetails(product)}
-                  className="text-xs font-bold text-blue-600 hover:underline"
-                >
-                  View Details
-                </button>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Product Table */
+        <div className="app-card overflow-x-auto">
+          <table className="app-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Unit Price</th>
+                <th>Stock</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((product) => {
+                const stock = getStockForProduct(product.id);
+                const isLowStock = stock < 10;
+
+                return (
+                  <tr key={product.id}>
+                    <td>
+                      <div className="font-bold text-gray-900">{product.name}</div>
+                      {product.description && (
+                        <div className="text-xs text-gray-500 max-w-[520px] truncate" title={product.description}>
+                          {product.description}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <span className="inline-flex px-2 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded tracking-wider">
+                        {product.category}
+                      </span>
+                    </td>
+                    <td className="text-sm font-bold text-gray-900">${product.unitPrice.toFixed(2)}</td>
+                    <td>
+                      <div className={cn(
+                        "inline-flex items-center gap-1.5 font-bold",
+                        isLowStock ? "text-amber-600" : "text-green-700"
+                      )}>
+                        {isLowStock && <AlertCircle size={14} />}
+                        {stock}
+                      </div>
+                    </td>
+                    <td className="text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetails(product)}
+                        className="text-xs font-bold text-blue-600 hover:underline mr-3"
+                      >
+                        View
+                      </button>
+                      {(isAdmin || isManager) && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStockModal(product)}
+                          className="text-xs font-bold text-blue-600 hover:underline mr-3"
+                        >
+                          Stock
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setFormData({
+                                name: product.name,
+                                category: product.category,
+                                unitPrice: product.unitPrice,
+                                description: product.description || '',
+                                initialQuantity: 0,
+                                outletId: getDefaultOutletId()
+                              });
+                              setIsModalOpen(true);
+                            }}
+                            className="text-xs font-bold text-gray-700 hover:underline mr-3"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="text-xs font-bold text-red-600 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {filteredProducts.length === 0 && (
+            <div className="p-10 text-center text-gray-400 text-sm">
+              No products match your filters.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Details Modal */}
       <AnimatePresence>

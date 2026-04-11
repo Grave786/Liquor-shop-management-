@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import type { Outlet, Product, Sale } from '../types';
-import { Clock, ShoppingCart } from 'lucide-react';
+import { Clock, ShoppingCart, Search } from 'lucide-react';
 
 const Transactions: React.FC = () => {
   const { profile, isAdmin } = useAuth();
@@ -15,6 +15,7 @@ const Transactions: React.FC = () => {
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,6 +61,29 @@ const Transactions: React.FC = () => {
       ? (outletNameById.get(outletIdParam) || 'Selected Outlet')
       : 'All Outlets';
 
+  const filteredSales = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return sales;
+
+    return sales.filter((sale) => {
+      const id = (sale.id || '').toLowerCase();
+      if (id.includes(q) || id.slice(-6).includes(q)) return true;
+
+      const outletName = (outletNameById.get(sale.outletId) || sale.outletId || '').toLowerCase();
+      if (outletName.includes(q)) return true;
+
+      const ts = (sale.timestamp || '').toString().toLowerCase();
+      if (ts.includes(q)) return true;
+
+      for (const it of sale.items || []) {
+        const name = (productNameById.get(it.productId) || it.productId || '').toLowerCase();
+        if (name.includes(q)) return true;
+      }
+
+      return false;
+    });
+  }, [outletNameById, productNameById, sales, searchTerm]);
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -92,21 +116,37 @@ const Transactions: React.FC = () => {
       </header>
 
       <div className="app-card">
-        <div className="app-card-header">
+        <div className="app-card-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
             <Clock size={18} className="text-blue-600" />
-            {loading ? 'Loading...' : `${sales.length} transaction(s)`}
+            {loading
+              ? 'Loading...'
+              : `${filteredSales.length} transaction(s)${searchTerm.trim() ? ` (of ${sales.length})` : ''}`}
+          </div>
+
+          <div className="relative w-full sm:w-[340px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search by ID, outlet, or product..."
+              className="app-input pl-9 pr-3 py-2 text-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
         {loading ? (
           <div className="p-6 text-sm text-gray-500">Loading transactions...</div>
-        ) : sales.length === 0 ? (
+        ) : filteredSales.length === 0 ? (
           <div className="p-10 text-center text-gray-400">
             <div className="mx-auto w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 mb-3">
               <ShoppingCart size={22} />
             </div>
             <p className="text-sm font-medium">No transactions found</p>
+            {searchTerm.trim() && (
+              <p className="text-xs mt-1">Try a different search term.</p>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -124,7 +164,7 @@ const Transactions: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {sales.map((sale) => {
+                {filteredSales.map((sale) => {
                   const itemCount = (sale.items || []).reduce((sum, it) => sum + (it.quantity || 0), 0);
                   const outletName = outletNameById.get(sale.outletId) || sale.outletId;
                   const items = sale.items || [];

@@ -1,50 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
-html[data-theme='dark'] {
-  --app-bg:
-    radial-gradient(1200px circle at 0% 0%, rgb(59 130 246 / 18%), transparent 55%),
-    radial-gradient(900px circle at 100% 30%, rgb(16 185 129 / 14%), transparent 55%),
-    linear-gradient(180deg, #0b1120 0%, #0b1120 50%, #070c17 100%);
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
 
-  --app-fg: #e2e8f0;
+html[data-theme='dark'] {
+  --app-accent: #7c3aed;
+  --app-accent-hover: #6d28d9;
+  --app-accent-soft: rgb(124 58 237 / 0.12);
+  --app-accent-soft-2: rgb(124 58 237 / 0.18);
+  --app-accent-ring: rgb(124 58 237 / 0.22);
+  --app-accent-contrast: #ffffff;
+
+  --app-bg:
+    radial-gradient(1200px circle at 0% 0%, rgb(124 58 237 / 0.22), transparent 55%),
+    radial-gradient(900px circle at 100% 18%, rgb(168 85 247 / 0.14), transparent 58%),
+    radial-gradient(900px circle at 50% 120%, rgb(124 58 237 / 0.10), transparent 55%),
+    linear-gradient(180deg, #070b14 0%, #0a1020 45%, #070b14 100%);
+
+  --app-fg: rgb(248 250 252);
   --app-muted: rgb(148 163 184);
 
-  --app-surface-bg: rgb(15 23 42 / 0.68);
-  --app-surface-border: rgb(148 163 184 / 0.14);
-  --app-surface-shadow: 0 18px 70px rgb(2 6 23 / 0.62);
+  --app-surface-bg: rgb(10 16 32 / 0.70);
+  --app-surface-border: rgb(255 255 255 / 0.08);
+  --app-surface-shadow: 0 18px 70px rgb(0 0 0 / 0.55);
 
-  --app-card-bg: #1e293b;
-  --app-card-border: rgb(226 232 240 / 0.12);
-  --app-card-shadow: 0 12px 36px rgb(2 6 23 / 0.42);
-  --app-card-header-bg: rgb(11 17 32 / 0.6);
-  --app-card-header-border: rgb(148 163 184 / 0.14);
+  --app-card-bg: rgb(17 27 45 / 0.92);
+  --app-card-border: rgb(255 255 255 / 0.08);
+  --app-card-shadow: 0 18px 55px rgb(0 0 0 / 0.42);
+  --app-card-header-bg: rgb(255 255 255 / 0.02);
+  --app-card-header-border: rgb(255 255 255 / 0.08);
 
-  --app-input-bg: rgb(11 17 32 / 0.65);
-  --app-input-border: rgb(148 163 184 / 0.18);
-  --app-placeholder: rgb(148 163 184 / 0.8);
+  --app-input-bg: rgb(15 23 42 / 0.52);
+  --app-input-border: rgb(255 255 255 / 0.10);
+  --app-placeholder: rgb(148 163 184 / 0.85);
 
-  --app-secondary-bg: rgb(15 23 42 / 0.6);
-  --app-secondary-hover-bg: rgb(15 23 42 / 0.8);
-  --app-secondary-border: rgb(148 163 184 / 0.16);
+  --app-secondary-bg: rgb(255 255 255 / 0.04);
+  --app-secondary-hover-bg: rgb(255 255 255 / 0.06);
+  --app-secondary-border: rgb(255 255 255 / 0.10);
 
-  --app-icon-fg: rgb(226 232 240 / 0.85);
-  --app-icon-hover-bg: rgb(148 163 184 / 0.12);
+  --app-icon-fg: rgb(255 255 255 / 0.86);
+  --app-icon-hover-bg: rgb(124 58 237 / 0.14);
 
-  --app-table-head-bg: rgb(15 23 42 / 0.55);
-  --app-table-head-border: rgb(148 163 184 / 0.14);
+  --app-table-head-bg: rgb(255 255 255 / 0.03);
+  --app-table-head-border: rgb(255 255 255 / 0.08);
   --app-table-head-fg: rgb(148 163 184);
-  --app-table-row-hover-bg: rgb(148 163 184 / 0.06);
-  --app-table-body-border: rgb(148 163 184 / 0.08);
+  --app-table-row-hover-bg: rgb(124 58 237 / 0.08);
+  --app-table-body-border: rgb(255 255 255 / 0.06);
 
-  --sidebar-bg: #1e293b;
-  --sidebar-border: rgb(255 255 255 / 0.10);
-  --sidebar-shadow: 0 20px 60px rgb(0 0 0 / 0.28);
-  --sidebar-link: rgb(203 213 225);
-  --sidebar-link-hover: #f1f5f9;
-  --sidebar-hover-bg: rgb(255 255 255 / 0.06);
-  --sidebar-active-bg: rgb(255 255 255 / 0.12);
-  --sidebar-active-fg: #f1f5f9;
-  --sidebar-userbox-bg: rgb(255 255 255 / 0.05);
+  --sidebar-bg:
+    radial-gradient(900px circle at 12% 10%, rgb(124 58 237 / 0.20), transparent 62%),
+    radial-gradient(900px circle at 88% 18%, rgb(168 85 247 / 0.10), transparent 62%),
+    linear-gradient(180deg, #0b1220 0%, #0a1020 55%, #070b14 100%);
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-shadow: 0 20px 60px rgb(0 0 0 / 0.40);
+  --sidebar-link: rgb(226 232 240 / 0.88);
+  --sidebar-link-hover: #ffffff;
+  --sidebar-hover-bg: var(--app-accent-soft);
+  --sidebar-active-bg: rgb(124 58 237 / 0.26);
+  --sidebar-active-fg: #ffffff;
+  --sidebar-userbox-bg: rgb(255 255 255 / 0.06);
   --sidebar-userbox-border: rgb(255 255 255 / 0.10);
   --sidebar-userbox-muted: rgb(148 163 184);
   --sidebar-danger: rgb(252 165 165);
@@ -54,13 +71,20 @@ html[data-theme='dark'] {
 }
 
 html[data-theme='light'] {
+  --app-accent: #7c3aed;
+  --app-accent-hover: #6d28d9;
+  --app-accent-soft: rgb(124 58 237 / 0.10);
+  --app-accent-soft-2: rgb(124 58 237 / 0.16);
+  --app-accent-ring: rgb(124 58 237 / 0.22);
+  --app-accent-contrast: #0b0b0b;
+
   --app-bg:
-    radial-gradient(900px circle at 12% 12%, rgb(59 130 246 / 26%), transparent 58%),
-    radial-gradient(900px circle at 92% 28%, rgb(139 92 246 / 22%), transparent 56%),
-    radial-gradient(800px circle at 50% 90%, rgb(16 185 129 / 14%), transparent 58%),
+    radial-gradient(900px circle at 12% 12%, rgb(124 58 237 / 0.18), transparent 60%),
+    radial-gradient(900px circle at 92% 28%, rgb(168 85 247 / 0.14), transparent 60%),
+    radial-gradient(800px circle at 50% 90%, rgb(2 6 23 / 0.06), transparent 62%),
     radial-gradient(700px circle at 30% 70%, rgb(255 255 255 / 0.85), transparent 60%),
     radial-gradient(700px circle at 78% 74%, rgb(255 255 255 / 0.78), transparent 60%),
-    linear-gradient(180deg, #eef3ff 0%, #f7f9ff 40%, #edf4ff 100%);
+    linear-gradient(180deg, #ffffff 0%, #fbfbfb 45%, #f6f6f6 100%);
 
   --app-fg: #0f172a;
   --app-muted: rgb(71 85 105);
@@ -93,19 +117,19 @@ html[data-theme='light'] {
   --app-table-body-border: rgb(15 23 42 / 0.06);
 
   --sidebar-bg:
-    radial-gradient(1000px circle at 0% 0%, rgb(255 255 255 / 0.22), transparent 62%),
-    radial-gradient(900px circle at 90% 30%, rgb(255 255 255 / 0.18), transparent 60%),
-    linear-gradient(180deg, #2f6fed 0%, #6a63ff 46%, #4d8dff 100%);
-  --sidebar-border: rgb(255 255 255 / 0.18);
-  --sidebar-shadow: 0 20px 60px rgb(2 6 23 / 0.18);
+    radial-gradient(900px circle at 15% 15%, rgb(124 58 237 / 0.16), transparent 62%),
+    radial-gradient(900px circle at 85% 25%, rgb(168 85 247 / 0.10), transparent 62%),
+    linear-gradient(180deg, #0b0b0b 0%, #050505 100%);
+  --sidebar-border: rgb(255 255 255 / 0.10);
+  --sidebar-shadow: 0 20px 60px rgb(2 6 23 / 0.24);
   --sidebar-link: rgb(255 255 255 / 0.92);
   --sidebar-link-hover: rgb(255 255 255);
-  --sidebar-hover-bg: rgb(255 255 255 / 0.12);
-  --sidebar-active-bg: rgb(255 255 255 / 0.92);
-  --sidebar-active-fg: rgb(15 23 42);
-  --sidebar-userbox-bg: rgb(255 255 255 / 0.84);
-  --sidebar-userbox-border: rgb(255 255 255 / 0.25);
-  --sidebar-userbox-muted: rgb(71 85 105);
+  --sidebar-hover-bg: rgb(124 58 237 / 0.20);
+  --sidebar-active-bg: rgb(168 85 247 / 0.92);
+  --sidebar-active-fg: rgb(2 6 23);
+  --sidebar-userbox-bg: rgb(255 255 255 / 0.08);
+  --sidebar-userbox-border: rgb(255 255 255 / 0.12);
+  --sidebar-userbox-muted: rgb(226 232 240 / 0.78);
   --sidebar-danger: rgb(239 68 68);
   --sidebar-danger-hover-bg: rgb(255 255 255 / 0.14);
 
@@ -122,6 +146,7 @@ html[data-theme='light'] {
   }
 
   body {
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -163,7 +188,7 @@ body {
     background:
       radial-gradient(900px circle at 10% 10%, rgb(255 255 255 / 0.42), transparent 55%),
       radial-gradient(700px circle at 80% 25%, rgb(255 255 255 / 0.30), transparent 58%),
-      linear-gradient(135deg, rgb(59 130 246 / 0.05), rgb(139 92 246 / 0.05));
+      linear-gradient(135deg, var(--app-accent-soft), rgb(2 6 23 / 0.03));
     mix-blend-mode: normal;
   }
 
@@ -183,7 +208,7 @@ body {
 
   .app-h1 {
     @apply text-3xl sm:text-4xl font-extrabold tracking-tight;
-    color: var(--app-fg);
+    color: var(--app-accent);
   }
 
   .app-subtitle {
@@ -202,8 +227,8 @@ body {
   }
   .app-input:focus {
     outline: none;
-    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.18);
-    border-color: rgb(59 130 246 / 0.55);
+    box-shadow: 0 0 0 4px var(--app-accent-ring);
+    border-color: var(--app-accent);
   }
 
   .app-select {
@@ -214,8 +239,8 @@ body {
   }
   .app-select:focus {
     outline: none;
-    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.18);
-    border-color: rgb(59 130 246 / 0.55);
+    box-shadow: 0 0 0 4px var(--app-accent-ring);
+    border-color: var(--app-accent);
   }
 
   html[data-theme='dark'] input[type='date'].app-select {
@@ -226,7 +251,7 @@ body {
     opacity: 0.95;
     cursor: pointer;
     filter: invert(1) brightness(1.6) drop-shadow(0 0 10px rgb(2 6 23 / 0.75));
-    background-color: rgb(59 130 246 / 0.18);
+    background-color: var(--app-accent-soft-2);
     border-radius: 10px;
     padding: 8px;
     transform: scale(1.15);
@@ -240,28 +265,30 @@ body {
     opacity: 0.95;
     cursor: pointer;
     filter: invert(1) brightness(1.6) drop-shadow(0 0 10px rgb(2 6 23 / 0.75));
-    background-color: rgb(59 130 246 / 0.18);
+    background-color: var(--app-accent-soft-2);
     border-radius: 10px;
     padding: 8px;
     transform: scale(1.15);
   }
 
   .app-btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all px-6 py-3 text-white active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
-    background-color: #3b82f6;
-    box-shadow: 0 12px 30px rgb(59 130 246 / 0.28);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all px-6 py-3 active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
+    background-color: var(--app-accent);
+    color: var(--app-accent-contrast);
+    box-shadow: 0 12px 30px var(--app-accent-soft-2);
   }
   .app-btn-primary:hover {
-    background-color: #2563eb;
+    background-color: var(--app-accent-hover);
   }
 
   .app-btn-primary-lg {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all w-full py-4 text-white active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
-    background-color: #3b82f6;
-    box-shadow: 0 12px 30px rgb(59 130 246 / 0.28);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition-all w-full py-4 active:translate-y-[1px] disabled:opacity-50 disabled:shadow-none;
+    background-color: var(--app-accent);
+    color: var(--app-accent-contrast);
+    box-shadow: 0 12px 30px var(--app-accent-soft-2);
   }
   .app-btn-primary-lg:hover {
-    background-color: #2563eb;
+    background-color: var(--app-accent-hover);
   }
 
   .app-btn-secondary {
@@ -380,6 +407,59 @@ body {
 }
 
 @layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Global palette remap (blue -> accent) inside the app shell */
+  .app-content .bg-blue-600 {
+    background-color: var(--app-accent) !important;
+  }
+  .app-content .hover\:bg-blue-700:hover {
+    background-color: var(--app-accent-hover) !important;
+  }
+  .app-content .hover\:bg-blue-600:hover {
+    background-color: var(--app-accent-hover) !important;
+  }
+  .app-content .bg-blue-50 {
+    background-color: var(--app-accent-soft) !important;
+  }
+  .app-content .bg-blue-100 {
+    background-color: var(--app-accent-soft-2) !important;
+  }
+  .app-content .text-blue-700,
+  .app-content .text-blue-600,
+  .app-content .text-blue-500,
+  .app-content .text-blue-400 {
+    color: var(--app-accent) !important;
+  }
+  .app-content .border-blue-600,
+  .app-content .border-blue-700,
+  .app-content .border-blue-500 {
+    border-color: var(--app-accent) !important;
+  }
+  .app-content .ring-blue-600 {
+    --tw-ring-color: var(--app-accent) !important;
+  }
+
   /* Dark-theme compatibility for existing utility-heavy markup inside the app shell */
   html[data-theme='dark'] .app-content .text-gray-900,
   html[data-theme='dark'] .app-content .text-slate-900,
@@ -404,16 +484,16 @@ body {
   }
 
   html[data-theme='dark'] .app-content .bg-white {
-    background-color: #1e293b !important;
+    background-color: var(--app-card-bg) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-gray-50,
   html[data-theme='dark'] .app-content .bg-gray-100 {
-    background-color: rgb(15 23 42 / 0.55) !important;
+    background-color: var(--app-secondary-bg) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-gray-50\/70 {
-    background-color: rgb(15 23 42 / 0.55) !important;
+    background-color: var(--app-secondary-bg) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-slate-100 {
@@ -421,7 +501,7 @@ body {
   }
 
   html[data-theme='dark'] .app-content .bg-slate-50\/70 {
-    background-color: rgb(15 23 42 / 0.55) !important;
+    background-color: var(--app-secondary-bg) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-gray-200 {
@@ -429,21 +509,21 @@ body {
   }
 
   html[data-theme='dark'] .app-content .bg-blue-50 {
-    background-color: rgb(59 130 246 / 0.14) !important;
+    background-color: var(--app-accent-soft) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-blue-50\/50 {
-    background-color: rgb(59 130 246 / 0.12) !important;
+    background-color: var(--app-accent-soft) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-blue-100 {
-    background-color: rgb(59 130 246 / 0.18) !important;
+    background-color: var(--app-accent-soft-2) !important;
   }
 
   html[data-theme='dark'] .app-content .text-blue-700,
   html[data-theme='dark'] .app-content .text-blue-600,
   html[data-theme='dark'] .app-content .text-blue-500 {
-    @apply text-blue-400;
+    color: var(--app-accent) !important;
   }
 
   html[data-theme='dark'] .app-content .bg-green-50 {
@@ -475,4 +555,13 @@ body {
   html[data-theme='dark'] .app-content .hover\:bg-gray-200:hover {
     background-color: rgb(148 163 184 / 0.12);
   }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
 }

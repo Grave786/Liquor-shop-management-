@@ -665,6 +665,94 @@ app.post('/api/sales', authenticateToken, async (req: any, res: any) => {
   }
 });
 
+app.post('/api/sales/:id/send-sms', authenticateToken, async (req: any, res: any) => {
+  try {
+    const saleId = String(req.params?.id || '').trim();
+    const phoneNumber = String(req.body?.phoneNumber || '').trim().replace(/\s+/g, '');
+    const customerName = String(req.body?.customerName || '').trim();
+
+    if (!saleId) return res.status(400).json({ message: 'Sale id is required' });
+    if (!/^\+\d{8,15}$/.test(phoneNumber)) {
+      return res.status(400).json({ message: 'Invalid phone number. Use E.164 format, e.g. +14155552671' });
+    }
+
+    const sale = await Sale.findById(saleId);
+    if (!sale) return res.status(404).json({ message: 'Sale not found' });
+
+    // Enforce outlet assignment for non-admin users
+    if (!['super_admin', 'admin'].includes(req.user.role)) {
+      const actingUser = await User.findById(req.user.id).select('outletId').exec();
+      if (!actingUser?.outletId) return res.status(403).json({ message: 'User is not assigned to an outlet' });
+      if (String(actingUser.outletId) !== String((sale as any).outletId)) {
+        return res.status(403).json({ message: 'Unauthorized outlet for this sale' });
+      }
+    }
+
+    const sid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
+    const token = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
+    const from = String(process.env.TWILIO_FROM_NUMBER || '').trim();
+    if (!sid || !token || !from) {
+      return res.status(501).json({
+        message: 'SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER in .env.'
+      });
+    }
+
+    const ids = Array.from(new Set(((sale as any).items || []).map((it: any) => String(it.productId || '')).filter(Boolean)));
+    const products = await Product.find({ _id: { $in: ids } }).select('name').exec();
+    const productNameById = new Map<string, string>(products.map((p: any) => [String(p._id), String(p.name)]));
+
+    const items = Array.isArray((sale as any).items) ? (sale as any).items : [];
+    const preview = items.slice(0, 6).map((it: any) => {
+      const name = productNameById.get(String(it.productId)) || 'Item';
+      return `${name} x${Number(it.quantity || 0)}`;
+    });
+    const moreCount = Math.max(0, items.length - preview.length);
+
+    const totalAmount = Number((sale as any).totalAmount || 0);
+    const receiptId = String((sale as any)._id).slice(-6).toUpperCase();
+    const dateStr = (() => {
+      try {
+        return new Date((sale as any).timestamp || Date.now()).toLocaleString();
+      } catch {
+        return '';
+      }
+    })();
+
+    const bodyLines = [
+      `LiquorLedger Receipt ${receiptId}`,
+      dateStr ? `Date: ${dateStr}` : null,
+      customerName ? `Customer: ${customerName}` : null,
+      `Total: $${totalAmount.toFixed(2)}`,
+      preview.length ? `Items: ${preview.join(', ')}${moreCount ? ` +${moreCount} more` : ''}` : null,
+      'Thank you!',
+    ].filter(Boolean);
+
+    const messageBody = bodyLines.join('\n');
+
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(sid)}/Messages.json`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const params = new URLSearchParams({ To: phoneNumber, From: from, Body: messageBody });
+    const twRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params,
+    });
+
+    if (!twRes.ok) {
+      const text = await twRes.text();
+      return res.status(502).json({ message: `Failed to send SMS (${twRes.status}). ${text}` });
+    }
+
+    const data = await twRes.json();
+    return res.json({ ok: true, sid: data?.sid });
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message || 'Failed to send SMS' });
+  }
+});
+
 // Transfers
 app.get('/api/transfers', authenticateToken, async (req, res) => {
   try {

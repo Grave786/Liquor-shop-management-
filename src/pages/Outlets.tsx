@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import { Outlet, UserProfile } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
+  Search,
+  Filter,
   MapPin, 
   User, 
   MoreVertical, 
@@ -12,7 +14,10 @@ import {
   Trash2, 
   Store,
   X,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  LayoutGrid,
+  Table2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { differenceInCalendarDays, format } from 'date-fns';
@@ -25,6 +30,17 @@ const Outlets: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [licenseFilter, setLicenseFilter] = useState<'all' | 'active' | 'expiring' | 'expired' | 'not_set'>('all');
+  const [managerFilter, setManagerFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
+    try {
+      const saved = localStorage.getItem('outlets:viewMode');
+      return saved === 'table' ? 'table' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -92,12 +108,71 @@ const Outlets: React.FC = () => {
     }
   };
 
+  const openEditOutlet = (outlet: Outlet) => {
+    setEditingOutlet(outlet);
+    setFormData({
+      name: outlet.name,
+      location: outlet.location,
+      managerId: outlet.managerId || '',
+      licenseNumber: outlet.licenseNumber || '',
+      licenseValidUntil: toDateInputValue(outlet.licenseValidUntil)
+    });
+    setIsModalOpen(true);
+  };
+
   const managers = users.filter(u => u.role === 'manager' || u.role === 'admin');
   const managerToOutletId = new Map<string, string>();
   for (const outlet of outlets) {
     if (outlet.managerId) managerToOutletId.set(outlet.managerId, outlet.id);
   }
   const editingOutletId = editingOutlet?.id || '';
+
+  const userById = useMemo(() => {
+    const map = new Map<string, UserProfile>();
+    for (const u of users) map.set(u.uid, u);
+    return map;
+  }, [users]);
+
+  const now = useMemo(() => new Date(), []);
+  const EXPIRING_SOON_DAYS = 30;
+
+  const getDaysLeft = (outlet: Outlet) => {
+    if (!outlet.licenseValidUntil) return null;
+    return differenceInCalendarDays(new Date(outlet.licenseValidUntil), now);
+  };
+
+  const getLicenseStatus = (outlet: Outlet) => {
+    const daysLeft = getDaysLeft(outlet);
+    if (!outlet.licenseValidUntil || daysLeft === null) return 'not_set' as const;
+    if (daysLeft < 0) return 'expired' as const;
+    if (daysLeft <= EXPIRING_SOON_DAYS) return 'expiring' as const;
+    return 'active' as const;
+  };
+
+  const normalizedSearch = searchTerm.toLowerCase().trim();
+  const filteredOutlets = outlets.filter((outlet) => {
+    const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+    const searchHaystack = [
+      outlet.name,
+      outlet.location,
+      outlet.licenseNumber || '',
+      manager?.displayName || '',
+      manager?.email || ''
+    ].join(' ').toLowerCase();
+
+    const matchesSearch = !normalizedSearch || searchHaystack.includes(normalizedSearch);
+
+    const status = getLicenseStatus(outlet);
+    const matchesLicense = licenseFilter === 'all' || status === licenseFilter;
+
+    const isAssigned = !!outlet.managerId;
+    const matchesManager =
+      managerFilter === 'all' ||
+      (managerFilter === 'assigned' && isAssigned) ||
+      (managerFilter === 'unassigned' && !isAssigned);
+
+    return matchesSearch && matchesLicense && matchesManager;
+  });
 
   return (
     <div className="space-y-8">
@@ -119,12 +194,97 @@ const Outlets: React.FC = () => {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {outlets.map((outlet, i) => {
-          const manager = users.find(u => u.uid === outlet.managerId);
-          const daysLeft = outlet.licenseValidUntil
-            ? differenceInCalendarDays(new Date(outlet.licenseValidUntil), new Date())
-            : null;
+      {/* Filters */}
+      <div className="app-card p-4 flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search by outlet, location, manager, or license..."
+            className="app-input pl-10 pr-4 py-2 text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-4 flex-wrap">
+          <div className="flex items-center rounded-xl border border-[color:var(--app-card-border)] bg-[color:var(--app-card-bg)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('grid');
+                try { localStorage.setItem('outlets:viewMode', 'grid'); } catch {}
+              }}
+              className={cn(
+                "px-3 py-2 text-xs font-bold flex items-center gap-2 transition-colors",
+                viewMode === 'grid'
+                  ? "bg-blue-600 text-white"
+                  : "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]"
+              )}
+              aria-pressed={viewMode === 'grid'}
+              aria-label="Grid view"
+            >
+              <LayoutGrid size={16} />
+              Grid
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('table');
+                try { localStorage.setItem('outlets:viewMode', 'table'); } catch {}
+              }}
+              className={cn(
+                "px-3 py-2 text-xs font-bold flex items-center gap-2 transition-colors",
+                viewMode === 'table'
+                  ? "bg-blue-600 text-white"
+                  : "text-[color:var(--app-fg)] hover:bg-[color:var(--app-icon-hover-bg)]"
+              )}
+              aria-pressed={viewMode === 'table'}
+              aria-label="Table view"
+            >
+              <Table2 size={16} />
+              Table
+            </button>
+          </div>
+
+          <div className="relative">
+            <select
+              className="app-select appearance-none pl-4 pr-10 py-2 text-sm font-medium text-gray-700 cursor-pointer"
+              value={licenseFilter}
+              onChange={(e) => setLicenseFilter(e.target.value as any)}
+            >
+              <option value="all">All Licenses</option>
+              <option value="active">Active</option>
+              <option value="expiring">Expiring Soon</option>
+              <option value="expired">Expired</option>
+              <option value="not_set">Not Set</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+          </div>
+
+          <div className="relative">
+            <select
+              className="app-select appearance-none pl-4 pr-10 py-2 text-sm font-medium text-gray-700 cursor-pointer"
+              value={managerFilter}
+              onChange={(e) => setManagerFilter(e.target.value as any)}
+            >
+              <option value="all">All Managers</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+          </div>
+
+          <button className="app-btn-icon" type="button" aria-label="Filters">
+            <Filter size={20} />
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredOutlets.map((outlet, i) => {
+          const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+          const daysLeft = getDaysLeft(outlet);
           const licenseUntilLabel = outlet.licenseValidUntil
             ? format(new Date(outlet.licenseValidUntil), 'MMM dd, yyyy')
             : null;
@@ -143,27 +303,19 @@ const Outlets: React.FC = () => {
                     <Store size={24} />
                   </div>
                   <div className="relative group/menu">
-                    <button className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-50">
+                    <button type="button" className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-50">
                       <MoreVertical size={18} />
                     </button>
                     <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
                       <button
-                        onClick={() => {
-                          setEditingOutlet(outlet);
-                          setFormData({
-                            name: outlet.name,
-                            location: outlet.location,
-                            managerId: outlet.managerId || '',
-                            licenseNumber: outlet.licenseNumber || '',
-                            licenseValidUntil: toDateInputValue(outlet.licenseValidUntil)
-                          });
-                          setIsModalOpen(true);
-                        }}
+                        type="button"
+                        onClick={() => openEditOutlet(outlet)}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Edit2 size={14} /> Edit
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDeleteOutlet(outlet.id)}
                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
@@ -217,8 +369,98 @@ const Outlets: React.FC = () => {
               </div>
             </motion.div>
           );
-        })}
-      </div>
+          })}
+
+          {!loading && filteredOutlets.length === 0 && (
+            <div className="p-10 text-center text-gray-400 text-sm md:col-span-2 lg:col-span-3">
+              No outlets match your filters.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="app-card overflow-x-auto">
+          <table className="app-table">
+            <thead>
+              <tr>
+                <th>Outlet</th>
+                <th>Location</th>
+                <th>Manager</th>
+                <th>License</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredOutlets.map((outlet) => {
+                const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+                const daysLeft = getDaysLeft(outlet);
+                const licenseUntilLabel = outlet.licenseValidUntil
+                  ? format(new Date(outlet.licenseValidUntil), 'MMM dd, yyyy')
+                  : null;
+
+                return (
+                  <tr key={outlet.id}>
+                    <td>
+                      <div className="font-bold text-gray-900">{outlet.name}</div>
+                      {outlet.licenseNumber && (
+                        <div className="text-xs text-gray-500">#{outlet.licenseNumber}</div>
+                      )}
+                    </td>
+                    <td className="text-sm text-gray-700">{outlet.location}</td>
+                    <td className="text-sm text-gray-700">
+                      {manager?.displayName || manager?.email || <span className="text-gray-400">Unassigned</span>}
+                    </td>
+                    <td className="text-sm">
+                      {!outlet.licenseValidUntil ? (
+                        <span className="text-gray-400">Not set</span>
+                      ) : daysLeft !== null && daysLeft < 0 ? (
+                        <span className="text-red-600 font-bold">Expired</span>
+                      ) : daysLeft !== null && daysLeft <= EXPIRING_SOON_DAYS ? (
+                        <span className="text-amber-600 font-bold">Expiring</span>
+                      ) : (
+                        <span className="text-green-700 font-bold">Active</span>
+                      )}
+                      {licenseUntilLabel && (
+                        <span className="text-xs text-gray-400 ml-2">(until {licenseUntilLabel})</span>
+                      )}
+                    </td>
+                    <td className="text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
+                        className="text-xs font-bold text-blue-600 hover:underline mr-3"
+                      >
+                        Inventory
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEditOutlet(outlet)}
+                        className="text-xs font-bold text-gray-700 hover:underline mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOutlet(outlet.id)}
+                        className="text-xs font-bold text-red-600 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {!loading && filteredOutlets.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-10 text-center text-gray-400 text-sm">
+                    No outlets match your filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal */}
       <AnimatePresence>
@@ -353,4 +595,8 @@ function toDateInputValue(value?: string) {
   } catch {
     return '';
   }
+}
+
+function cn(...inputs: any[]) {
+  return inputs.filter(Boolean).join(' ');
 }
