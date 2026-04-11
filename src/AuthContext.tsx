@@ -28,7 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (response.ok) {
-            const data = await response.json();
+            const data = await response.json().catch(() => null);
+            if (!data) throw new Error('Invalid response from server');
             setUser(data);
             setProfile({
               uid: data.id,

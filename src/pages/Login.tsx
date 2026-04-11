@@ -27,18 +27,24 @@ const Login: React.FC = () => {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        const contentType = response.headers.get('content-type') || '';
+        data = contentType.includes('application/json') ? await response.json() : { message: await response.text() };
+      } catch {
+        data = null;
+      }
 
       if (response.ok) {
         login(data.token, data.user);
         const from = (location.state as any)?.from?.pathname || '/';
         navigate(from, { replace: true });
       } else {
-        setError(data.message || 'Authentication failed');
+        setError(data?.message || `Request failed (${response.status})`);
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      setError('Connection failed. Please try again.');
+      setError(err?.message ? `Connection failed: ${err.message}` : 'Connection failed. Please try again.');
     } finally {
       setLoading(false);
     }
