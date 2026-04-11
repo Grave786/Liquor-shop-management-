@@ -557,6 +557,117 @@ app.get('/api/sales', authenticateToken, async (req, res) => {
   }
 });
 
+// Reports (admin only)
+app.get(['/api/reports/sales', '/api/reports/sales.csv'], authenticateToken, async (req: any, res: any) => {
+  try {
+    if (!['super_admin', 'admin'].includes(req.user?.role)) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const outletIdRaw = (req.query?.outletId || '').toString().trim();
+    const fromRaw = (req.query?.from || '').toString().trim();
+    const toRaw = (req.query?.to || '').toString().trim();
+
+    const timestampFilter: any = {};
+    if (fromRaw) {
+      const d = new Date(fromRaw);
+      if (Number.isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid from date' });
+      timestampFilter.$gte = d;
+    }
+    if (toRaw) {
+      const d = new Date(toRaw);
+      if (Number.isNaN(d.getTime())) return res.status(400).json({ message: 'Invalid to date' });
+      timestampFilter.$lte = d;
+    }
+
+    const filter: any = {};
+    if (outletIdRaw) filter.outletId = outletIdRaw;
+    if (Object.keys(timestampFilter).length) filter.timestamp = timestampFilter;
+
+    const sales = await Sale.find(filter).sort({ timestamp: -1 });
+
+    const outletIds = new Set<string>();
+    const productIds = new Set<string>();
+    for (const s of sales) {
+      if ((s as any).outletId) outletIds.add(String((s as any).outletId));
+      for (const it of (s as any).items || []) {
+        if (it?.productId) productIds.add(String(it.productId));
+      }
+    }
+
+    const [outletDocs, productDocs] = await Promise.all([
+      Outlet.find(outletIds.size ? { _id: { $in: Array.from(outletIds) } } : {}).select('_id name'),
+      Product.find(productIds.size ? { _id: { $in: Array.from(productIds) } } : {}).select('_id name sku category'),
+    ]);
+
+    const outletNameById = new Map<string, string>();
+    for (const o of outletDocs) outletNameById.set(String(o._id), String((o as any).name || ''));
+
+    const productNameById = new Map<string, string>();
+    for (const p of productDocs) productNameById.set(String(p._id), String((p as any).name || ''));
+
+    const csvEscape = (value: any) => {
+      const s = value === null || value === undefined ? '' : String(value);
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    const header = [
+      'saleId',
+      'timestamp',
+      'outletId',
+      'outletName',
+      'userId',
+      'itemsCount',
+      'itemsSummary',
+      'subtotal',
+      'discountType',
+      'discountValue',
+      'discountAmount',
+      'totalAmount',
+    ];
+
+    const rows = sales.map((s: any) => {
+      const outletName = outletNameById.get(String(s.outletId)) || '';
+      const items = Array.isArray(s.items) ? s.items : [];
+      const itemsCount = items.reduce((sum: number, it: any) => sum + Number(it?.quantity || 0), 0);
+      const itemsSummary = items
+        .slice(0, 50)
+        .map((it: any) => {
+          const name = productNameById.get(String(it.productId)) || String(it.productId || '');
+          const qty = Number(it.quantity || 0);
+          const price = Number(it.price || 0);
+          return `${name} x${qty} @${price}`;
+        })
+        .join('; ');
+
+      return [
+        s._id,
+        s.timestamp ? new Date(s.timestamp).toISOString() : '',
+        s.outletId,
+        outletName,
+        s.userId,
+        itemsCount,
+        itemsSummary,
+        (s as any).subtotal ?? '',
+        (s as any).discountType ?? '',
+        (s as any).discountValue ?? '',
+        (s as any).discountAmount ?? '',
+        s.totalAmount ?? '',
+      ].map(csvEscape).join(',');
+    });
+
+    const csv = [header.join(','), ...rows].join('\n');
+    const fileName = `sales-report-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.status(200).send(csv);
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message || 'Failed to generate report' });
+  }
+});
+
 app.post('/api/sales', authenticateToken, async (req: any, res: any) => {
   const session = await mongoose.startSession();
   session.startTransaction();

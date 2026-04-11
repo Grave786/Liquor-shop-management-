@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
 import type { Outlet, Product, Sale } from '../types';
-import { Clock, ShoppingCart, Search } from 'lucide-react';
+import { Clock, ShoppingCart, Search, Download } from 'lucide-react';
 
 const Transactions: React.FC = () => {
   const { profile, isAdmin } = useAuth();
@@ -16,6 +16,8 @@ const Transactions: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -96,22 +98,64 @@ const Transactions: React.FC = () => {
         </div>
 
         {isAdmin && (
-          <select
-            className="app-select"
-            value={outletIdParam}
-            onChange={(e) => {
-              const next = e.target.value;
-              const nextParams = new URLSearchParams(searchParams);
-              if (!next) nextParams.delete('outletId');
-              else nextParams.set('outletId', next);
-              setSearchParams(nextParams);
-            }}
-          >
-            <option value="">All Outlets</option>
-            {outlets.map(o => (
-              <option key={o.id} value={o.id}>{o.name}</option>
-            ))}
-          </select>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <select
+              className="app-select"
+              value={outletIdParam}
+              onChange={(e) => {
+                const next = e.target.value;
+                const nextParams = new URLSearchParams(searchParams);
+                if (!next) nextParams.delete('outletId');
+                else nextParams.set('outletId', next);
+                setSearchParams(nextParams);
+              }}
+            >
+              <option value="">All Outlets</option>
+              {outlets.map(o => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className="app-btn-secondary-lg text-sm flex items-center justify-center gap-2"
+              disabled={downloadingReport}
+              onClick={async () => {
+                try {
+                  setReportError(null);
+                  setDownloadingReport(true);
+
+                  const qs = new URLSearchParams();
+                  if (outletIdParam) qs.set('outletId', outletIdParam);
+                  const url = `/api/reports/sales${qs.toString() ? `?${qs.toString()}` : ''}`;
+
+                  const res = await apiFetch(url);
+                  if (!res.ok) {
+                    const msg = await res.json().catch(() => null);
+                    throw new Error(msg?.message || `Failed to download report (${res.status})`);
+                  }
+
+                  const blob = await res.blob();
+                  const downloadUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = downloadUrl;
+                  a.download = `sales-report${outletIdParam ? `-${outletIdParam}` : ''}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(downloadUrl);
+                } catch (err: any) {
+                  console.error('Report download error:', err);
+                  setReportError(err?.message || 'Failed to download report');
+                } finally {
+                  setDownloadingReport(false);
+                }
+              }}
+            >
+              <Download size={18} />
+              {downloadingReport ? 'Preparing...' : 'Download CSV'}
+            </button>
+          </div>
         )}
       </header>
 
@@ -123,6 +167,12 @@ const Transactions: React.FC = () => {
               ? 'Loading...'
               : `${filteredSales.length} transaction(s)${searchTerm.trim() ? ` (of ${sales.length})` : ''}`}
           </div>
+
+          {reportError && (
+            <div className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-xl">
+              {reportError}
+            </div>
+          )}
 
           <div className="relative w-full sm:w-[340px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
