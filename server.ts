@@ -15,6 +15,25 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here';
 app.use(cors());
 app.use(express.json());
 
+const normalizePhone = (value: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const hasPlus = raw.startsWith('+');
+  const digits = raw.replace(/[^\d]/g, '');
+  return hasPlus ? `+${digits}` : digits;
+};
+
+const getSupportContact = () => {
+  const email = String(process.env.SUPPORT_EMAIL || '').trim();
+  const phone = String(process.env.SUPPORT_PHONE || '').trim();
+  const whatsapp = String(process.env.SUPPORT_WHATSAPP || '').trim();
+  return {
+    email: email || undefined,
+    phone: phone || undefined,
+    whatsapp: whatsapp || undefined,
+  };
+};
+
 // MongoDB Connection (serverless-safe)
 const getMongoUriFromEnv = () => {
   const envUri = (process.env.MONGO_URI || '').trim().replace(/^["']|["']$/g, '');
@@ -61,7 +80,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['super_admin', 'admin', 'manager', 'user', 'terminal'], default: 'user' },
   outletId: { type: String },
   displayName: { type: String },
-  createdBy: { type: String }
+  createdBy: { type: String },
+  isApproved: { type: Boolean, default: true }
 });
 
 const outletSchema = new mongoose.Schema({
@@ -113,12 +133,30 @@ const transferSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+const accessRequestSchema = new mongoose.Schema({
+  fullName: { type: String, required: true },
+  email: { type: String, required: true },
+  phone: { type: String, required: true },
+  country: { type: String, required: true },
+  businessName: { type: String, required: true },
+  message: { type: String },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now },
+  approvedAt: { type: Date },
+  approvedBy: { type: String },
+  rejectedAt: { type: Date },
+  rejectedBy: { type: String },
+  rejectionReason: { type: String },
+  createdUserId: { type: String }
+});
+
 const User = mongoose.model('User', userSchema);
 const Outlet = mongoose.model('Outlet', outletSchema);
 const Product = mongoose.model('Product', productSchema);
 const Inventory = mongoose.model('Inventory', inventorySchema);
 const Sale = mongoose.model('Sale', saleSchema);
 const Transfer = mongoose.model('Transfer', transferSchema);
+const AccessRequest = mongoose.model('AccessRequest', accessRequestSchema);
 
 const generateSku = () => `SKU-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -152,11 +190,12 @@ app.post('/api/auth/register', async (req, res) => {
       email,
       password: hashedPassword,
       displayName: displayName || email.split('@')[0],
-      role: isSuperAdminEmail ? 'super_admin' : 'user'
+      role: isSuperAdminEmail ? 'super_admin' : 'user',
+      isApproved: isSuperAdminEmail ? true : false
     });
 
     await user.save();
-    res.status(201).json({ message: 'User registered successfully' });
+    res.status(201).json({ message: isSuperAdminEmail ? 'User registered successfully' : 'Registration submitted for admin approval' });
   } catch (err) {
     res.status(500).json({ message: 'Error registering user' });
   }
@@ -170,6 +209,10 @@ app.post('/api/auth/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ message: 'Invalid password' });
+
+    if (user.isApproved === false) {
+      return res.status(403).json({ message: 'Your account is pending admin approval.' });
+    }
 
     const token = jwt.sign({ id: user._id, email: user.email, role: user.role }, JWT_SECRET);
     res.json({ token, user: { id: user._id, email: user.email, role: user.role, displayName: user.displayName, outletId: user.outletId } });
@@ -189,6 +232,181 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
 });
 
 // --- API Routes ---
+
+// Public: request access (new customers)
+app.post('/api/access-requests', async (req, res) => {
+  try {
+    const { fullName, email, phone, country, businessName, message } = req.body || {};
+
+    const missing: string[] = [];
+    if (!fullName) missing.push('fullName');
+    if (!email) missing.push('email');
+    if (!phone) missing.push('phone');
+    if (!country) missing.push('country');
+    if (!businessName) missing.push('businessName');
+    if (missing.length) return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}` });
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const alreadyUser = await User.findOne({ email: normalizedEmail });
+    if (alreadyUser) return res.status(409).json({ message: 'An account with this email already exists. Please try logging in.' });
+
+    const existingPending = await AccessRequest.findOne({ email: normalizedEmail, status: 'pending' });
+    if (existingPending) return res.status(409).json({ message: 'A request for this email is already pending approval.' });
+
+    const doc = new AccessRequest({
+      fullName: String(fullName).trim(),
+      email: normalizedEmail,
+      phone: String(phone).trim(),
+      country: String(country).trim(),
+      businessName: String(businessName).trim(),
+      message: message ? String(message).trim() : undefined,
+      status: 'pending',
+    });
+
+    await doc.save();
+    res.status(201).json({ message: 'Request submitted successfully. Admin approval is required.' });
+  } catch (err) {
+    console.error('Access request error:', err);
+    res.status(500).json({ message: 'Error submitting access request' });
+  }
+});
+
+// Public: check access request status (email + phone)
+app.get('/api/access-requests/status', async (req, res) => {
+  try {
+    const email = String(req.query?.email || '').trim().toLowerCase();
+    const phone = String(req.query?.phone || '').trim();
+    if (!email || !phone) {
+      return res.status(400).json({
+        message: 'email and phone are required',
+        supportContact: getSupportContact(),
+      });
+    }
+
+    const request = await AccessRequest.findOne({ email }).sort({ createdAt: -1 });
+    if (!request) {
+      return res.status(404).json({
+        message: 'No access request found for this email.',
+        supportContact: getSupportContact(),
+      });
+    }
+
+    const samePhone = normalizePhone(request.phone) === normalizePhone(phone);
+    if (!samePhone) {
+      return res.status(403).json({
+        message: 'Phone number does not match this access request.',
+        supportContact: getSupportContact(),
+      });
+    }
+
+    return res.json({
+      status: request.status,
+      createdAt: request.createdAt,
+      approvedAt: request.approvedAt,
+      rejectedAt: request.rejectedAt,
+      rejectionReason: request.rejectionReason,
+      supportContact: getSupportContact(),
+    });
+  } catch (err) {
+    console.error('Access status error:', err);
+    res.status(500).json({ message: 'Error checking access request status' });
+  }
+});
+
+// Admin: list access requests
+app.get('/api/access-requests', authenticateToken, async (req: any, res) => {
+  const role = req.user?.role;
+  if (role !== 'super_admin') {
+    return res.status(403).json({ message: 'Unauthorized to view access requests' });
+  }
+
+  const status = String(req.query?.status || '').trim();
+  const filter: any = {};
+  if (status && ['pending', 'approved', 'rejected'].includes(status)) filter.status = status;
+
+  const list = await AccessRequest.find(filter).sort({ createdAt: -1 });
+  res.json(list);
+});
+
+// Admin: approve (creates user)
+app.post('/api/access-requests/:id/approve', authenticateToken, async (req: any, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'super_admin') {
+      return res.status(403).json({ message: 'Unauthorized to approve access requests' });
+    }
+
+    const request = await AccessRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Access request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ message: `Request already ${request.status}` });
+
+    const { password, userRole, outletId, displayName } = req.body || {};
+    if (!password || String(password).length < 6) {
+      return res.status(400).json({ message: 'Password is required (min 6 chars)' });
+    }
+
+    const normalizedEmail = String(request.email).trim().toLowerCase();
+    const hashedPassword = await bcrypt.hash(String(password), 10);
+
+    let user = await User.findOne({ email: normalizedEmail });
+    if (user) {
+      user.password = hashedPassword;
+      if (userRole) user.role = userRole;
+      if (typeof outletId === 'string') user.outletId = outletId || undefined;
+      if (typeof displayName === 'string' && displayName.trim()) user.displayName = displayName.trim();
+      user.isApproved = true;
+      await user.save();
+    } else {
+      user = new User({
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: userRole || 'user',
+        outletId: outletId || undefined,
+        displayName: (displayName && String(displayName).trim()) || request.fullName,
+        createdBy: String(req.user.id),
+        isApproved: true,
+      });
+      await user.save();
+    }
+
+    request.status = 'approved';
+    request.approvedAt = new Date();
+    request.approvedBy = String(req.user.id);
+    request.createdUserId = String(user._id);
+    await request.save();
+
+    res.json({ message: 'Approved and user created', userId: user._id });
+  } catch (err) {
+    console.error('Approve request error:', err);
+    res.status(500).json({ message: 'Error approving access request' });
+  }
+});
+
+// Admin: reject
+app.post('/api/access-requests/:id/reject', authenticateToken, async (req: any, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'super_admin') {
+      return res.status(403).json({ message: 'Unauthorized to reject access requests' });
+    }
+
+    const request = await AccessRequest.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Access request not found' });
+    if (request.status !== 'pending') return res.status(400).json({ message: `Request already ${request.status}` });
+
+    const { reason } = req.body || {};
+    request.status = 'rejected';
+    request.rejectedAt = new Date();
+    request.rejectedBy = String(req.user.id);
+    request.rejectionReason = reason ? String(reason).trim() : undefined;
+    await request.save();
+
+    res.json({ message: 'Rejected access request' });
+  } catch (err) {
+    console.error('Reject request error:', err);
+    res.status(500).json({ message: 'Error rejecting access request' });
+  }
+});
 
 // Users
 app.get('/api/users', authenticateToken, async (req: any, res: any) => {

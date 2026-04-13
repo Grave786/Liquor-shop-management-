@@ -22,15 +22,15 @@ export const AuthGuard: React.FC<{ children: React.ReactNode; requiredRole?: 'ad
   }
 
   if (requiredRole === 'super_admin' && !isSuperAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   if (requiredRole === 'admin' && !isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   if (requiredRole === 'manager' && !isManager) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   return <>{children}</>;

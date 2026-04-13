@@ -281,7 +281,7 @@ const StockTransfers: React.FC = () => {
                     <label className="text-sm font-bold text-gray-700">Product</label>
                     <select
                       required
-                      className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                      className="app-select w-full"
                       value={formData.productId}
                       onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
                     >
@@ -295,7 +295,7 @@ const StockTransfers: React.FC = () => {
                       <label className="text-sm font-bold text-gray-700">From Outlet</label>
                       <select
                         required
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                        className="app-select w-full"
                         value={formData.fromOutletId}
                         onChange={(e) => setFormData({ ...formData, fromOutletId: e.target.value })}
                       >
@@ -307,7 +307,7 @@ const StockTransfers: React.FC = () => {
                       <label className="text-sm font-bold text-gray-700">To Outlet</label>
                       <select
                         required
-                        className="w-full px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                        className="app-select w-full"
                         value={formData.toOutletId}
                         onChange={(e) => setFormData({ ...formData, toOutletId: e.target.value })}
                       >

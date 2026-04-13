@@ -143,6 +143,7 @@ html[data-theme='light'] {
 
   html {
     text-rendering: geometricPrecision;
+    scroll-behavior: smooth;
   }
 
   body {
@@ -242,6 +243,15 @@ body {
     box-shadow: 0 0 0 4px var(--app-accent-ring);
     border-color: var(--app-accent);
   }
+  /* Native <select> dropdown options can inherit light text on a white menu (Windows/Chrome),
+     making options effectively invisible in dark theme. Force readable option colors. */
+  .app-select option {
+    color: #111827;
+    background-color: #ffffff;
+  }
+  .app-select option:disabled {
+    color: #6b7280;
+  }
 
   html[data-theme='dark'] input[type='date'].app-select {
     color-scheme: dark;
@@ -318,6 +328,44 @@ body {
   .app-btn-icon:hover {
     background-color: var(--app-icon-hover-bg);
     color: var(--app-fg);
+  }
+
+  .landing-footer-accent {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--app-accent) 18%,
+      rgb(217 70 239 / 0.9) 50%,
+      var(--app-accent) 82%,
+      transparent
+    );
+    opacity: 0.75;
+  }
+
+  .landing-footer-surface {
+    background:
+      radial-gradient(900px circle at 20% 10%, var(--app-accent-soft-2), transparent 60%),
+      radial-gradient(700px circle at 85% 20%, rgb(217 70 239 / 0.16), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.03));
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  html[data-theme='light'] .landing-footer-surface {
+    background:
+      radial-gradient(900px circle at 20% 10%, var(--app-accent-soft-2), transparent 60%),
+      radial-gradient(700px circle at 85% 20%, rgb(217 70 239 / 0.10), transparent 58%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.82), rgb(255 255 255 / 0.64));
+  }
+
+  .landing-footer-link {
+    @apply inline-flex items-center gap-2;
+    transition: color 150ms ease, transform 150ms ease;
+  }
+  .landing-footer-link:hover {
+    color: var(--app-fg);
+    transform: translateX(2px);
   }
 
   .app-table {

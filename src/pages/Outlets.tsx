@@ -359,13 +359,13 @@ const Outlets: React.FC = () => {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.22em]">
                   Active Location
                 </span>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
-                  className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all"
-                >
-                  View Inventory <ChevronRight size={14} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
+                    className="text-xs font-bold text-blue-600 flex items-center gap-1 group-hover:gap-2 transition-all"
+                  >
+                    View Inventory <ChevronRight size={14} />
+                  </button>
               </div>
             </motion.div>
           );
@@ -426,7 +426,7 @@ const Outlets: React.FC = () => {
                     <td className="text-right whitespace-nowrap">
                       <button
                         type="button"
-                        onClick={() => navigate(`/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
+                        onClick={() => navigate(`/app/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
                         className="text-xs font-bold text-blue-600 hover:underline mr-3"
                       >
                         Inventory

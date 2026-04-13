@@ -208,11 +208,11 @@ const Dashboard: React.FC = () => {
       })(),
       icon: Package,
       color: 'bg-blue-600',
-      trend: 'â€”',
+      trend: '—',
       isUp: true,
     },
-    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: 'â€”', isUp: false },
-    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: 'â€”', isUp: true },
+    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '—', isUp: false },
+    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: '—', isUp: true },
   ];
 
   const selectedOutletName = useMemo(() => {
@@ -298,14 +298,14 @@ const Dashboard: React.FC = () => {
                 <div
                   className={cn(
                     'flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full',
-                    stat.trend === 'â€”'
+                    stat.trend === '—'
                       ? 'bg-[color:var(--app-secondary-bg)] text-[color:var(--app-muted)]'
                       : stat.isUp
                         ? 'bg-green-50 text-green-700'
                         : 'bg-red-50 text-red-600'
                   )}
                 >
-                  {stat.trend !== 'â€”' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
+                  {stat.trend !== '—' && (stat.isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />)}
                   {stat.trend}
                 </div>
 
@@ -429,7 +429,7 @@ const Dashboard: React.FC = () => {
             type="button"
             onClick={() => {
               const qs = outletIdParam ? `?outletId=${encodeURIComponent(outletIdParam)}` : '';
-              navigate(`/transactions${qs}`);
+              navigate(`/app/transactions${qs}`);
             }}
             className="mt-8 w-full py-3 text-sm font-bold text-blue-700 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
           >
@@ -446,3 +446,4 @@ export default Dashboard;
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
 }
+

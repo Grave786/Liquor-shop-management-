@@ -7,10 +7,9 @@ import {
   Shield, 
   Store, 
   Mail, 
-  MoreVertical, 
   Edit2, 
-  X,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -49,7 +48,7 @@ const Users: React.FC = () => {
     try {
       const [userRes, outRes] = await Promise.all([
         apiFetch('/api/users'),
-        apiFetch('/api/outlets')
+        apiFetch('/api/outlets'),
       ]);
 
       if (userRes.ok) setUsers(await userRes.json());
@@ -335,6 +334,135 @@ const Users: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+
+      {/*
+        {isApproveModalOpen && approvingRequest && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsApproveModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Approve Access</h2>
+                  <button
+                    onClick={() => setIsApproveModalOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="mb-6 p-4 bg-blue-50 rounded-2xl">
+                  <p className="text-sm font-bold text-gray-900">{approvingRequest.fullName}</p>
+                  <p className="text-sm text-gray-600">{approvingRequest.email}</p>
+                  <p className="text-sm text-gray-600">
+                    {approvingRequest.phone} • {approvingRequest.country}
+                  </p>
+                  <p className="text-sm text-gray-600">{approvingRequest.businessName}</p>
+                </div>
+
+                <form onSubmit={approveRequest} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Display Name</label>
+                    <input
+                      className="app-input"
+                      value={approveForm.displayName}
+                      onChange={(e) => setApproveForm((s) => ({ ...s, displayName: e.target.value }))}
+                      placeholder="User display name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Password (share with user)</label>
+                    <div className="flex gap-2">
+                      <input
+                        required
+                        type="text"
+                        className="app-input flex-1"
+                        value={approveForm.password}
+                        onChange={(e) => setApproveForm((s) => ({ ...s, password: e.target.value }))}
+                        placeholder="Set a password"
+                      />
+                      <button
+                        type="button"
+                        onClick={generatePassword}
+                        className="app-btn-secondary px-4 py-3 text-sm shrink-0 whitespace-nowrap"
+                      >
+                        Generate
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 font-medium">User can login only after approval.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">System Role</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {availableRoles
+                        .filter((r) => r !== 'super_admin')
+                        .map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => setApproveForm((s) => ({ ...s, userRole: role }))}
+                            className={cn(
+                              "px-4 py-3 rounded-xl text-sm font-bold transition-all border-2",
+                              approveForm.userRole === role
+                                ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100"
+                                : "bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100"
+                            )}
+                          >
+                            {role.replace('_', ' ').toUpperCase()}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Outlet Assignment</label>
+                    <select
+                      className="app-select w-full"
+                      value={approveForm.outletId}
+                      onChange={(e) => setApproveForm((s) => ({ ...s, outletId: e.target.value }))}
+                    >
+                      <option value="">No Outlet Assignment</option>
+                      {outlets.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="pt-2 flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsApproveModalOpen(false)}
+                      className="flex-1 app-btn-secondary-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="flex-1 app-btn-primary-lg text-sm flex items-center justify-center gap-2">
+                      <CheckCircle2 size={20} />
+                      Approve & Create User
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      */}
     </div>
   );
 };

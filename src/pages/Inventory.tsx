@@ -251,7 +251,7 @@ const Inventory: React.FC = () => {
           <h1 className="app-h1">Inventory</h1>
           <p className="app-subtitle">
             Manage your product catalog and track stock levels.
-            {isAdmin && <span className="ml-2 text-gray-400">â€¢ {selectedOutletName}</span>}
+            {isAdmin && <span className="ml-2 text-gray-400">• {selectedOutletName}</span>}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -926,4 +926,5 @@ export default Inventory;
 function cn(...inputs: any[]) {
   return inputs.filter(Boolean).join(' ');
 }
+
 

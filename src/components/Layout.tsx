@@ -6,6 +6,7 @@ import {
   ShoppingCart, 
   Store, 
   Users, 
+  UserCheck,
   ArrowLeftRight, 
   LogOut, 
   Menu, 
@@ -33,17 +34,18 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    logout();
-    navigate('/login');
+    navigate('/', { replace: true });
+    Promise.resolve().then(() => logout());
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard, show: true },
-    { name: 'Inventory', path: '/inventory', icon: Package, show: true },
-    { name: 'Sales', path: '/sales', icon: ShoppingCart, show: true },
-    { name: 'Stock Transfer', path: '/transfers', icon: ArrowLeftRight, show: isManager },
-    { name: 'Outlets', path: '/outlets', icon: Store, show: isAdmin },
-    { name: 'Users', path: '/users', icon: Users, show: isAdmin },
+    { name: 'Dashboard', path: '/app', icon: LayoutDashboard, show: true },
+    { name: 'Inventory', path: '/app/inventory', icon: Package, show: true },
+    { name: 'Sales', path: '/app/sales', icon: ShoppingCart, show: true },
+    { name: 'Stock Transfer', path: '/app/transfers', icon: ArrowLeftRight, show: isManager },
+    { name: 'Outlets', path: '/app/outlets', icon: Store, show: isAdmin },
+    { name: 'Users', path: '/app/users', icon: Users, show: isAdmin },
+    { name: 'Access Requests', path: '/app/access-requests', icon: UserCheck, show: isSuperAdmin },
   ];
 
   useEffect(() => {
