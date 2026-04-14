@@ -61,4 +61,30 @@ export interface StockTransfer {
   quantity: number;
   status: 'pending' | 'completed' | 'cancelled';
   timestamp: string;
+  createdByUserId?: string;
+  lastUpdatedByUserId?: string;
+  events?: StockTransferEvent[];
+}
+
+export interface StockTransferEvent {
+  type: 'created' | 'status_changed' | 'note';
+  statusFrom?: StockTransfer['status'];
+  statusTo?: StockTransfer['status'];
+  note?: string;
+  userId?: string;
+  timestamp: string;
+}
+
+export interface InventoryAdditionLog {
+  id: string;
+  outletId: string;
+  productId: string;
+  product?: { id: string; name: string; sku?: string; category?: string } | null;
+  quantityAdded: number;
+  previousQuantity: number;
+  newQuantity: number;
+  addedBy?: { id: string; email: string; displayName?: string; role: UserRole } | null;
+  source: 'manual' | 'transfer_in';
+  transferId?: string;
+  timestamp: string;
 }

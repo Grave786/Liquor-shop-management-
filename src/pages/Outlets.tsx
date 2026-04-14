@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
-import { Outlet, UserProfile } from '../types';
+import { InventoryAdditionLog, Outlet, UserProfile } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
@@ -12,6 +12,7 @@ import {
   MoreVertical, 
   Edit2, 
   Trash2, 
+  History,
   Store,
   X,
   ChevronRight,
@@ -23,12 +24,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { differenceInCalendarDays, format } from 'date-fns';
 
 const Outlets: React.FC = () => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager, profile } = useAuth();
   const navigate = useNavigate();
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOutlet, setEditingOutlet] = useState<Outlet | null>(null);
+  const [historyOutlet, setHistoryOutlet] = useState<Outlet | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<InventoryAdditionLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [licenseFilter, setLicenseFilter] = useState<'all' | 'active' | 'expiring' | 'expired' | 'not_set'>('all');
@@ -52,13 +57,12 @@ const Outlets: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [outRes, userRes] = await Promise.all([
-        apiFetch('/api/outlets'),
-        apiFetch('/api/users')
-      ]);
+      const outRes = await apiFetch('/api/outlets');
+      const userRes = isAdmin ? await apiFetch('/api/users') : null;
 
-      if (outRes.ok) setOutlets(await outRes.ok ? await outRes.json() : []);
-      if (userRes.ok) setUsers(await userRes.ok ? await userRes.json() : []);
+      if (outRes.ok) setOutlets(await outRes.json());
+      if (userRes && userRes.ok) setUsers(await userRes.json());
+      if (!userRes) setUsers([]);
     } catch (err) {
       console.error('Error fetching outlets data:', err);
     } finally {
@@ -68,7 +72,26 @@ const Outlets: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isAdmin]);
+
+  const openHistory = async (outlet: Outlet) => {
+    setHistoryOutlet(outlet);
+    setHistoryLogs([]);
+    setHistoryError('');
+    setHistoryLoading(true);
+    try {
+      const res = await apiFetch(`/api/outlets/${encodeURIComponent(outlet.id)}/inventory-additions?limit=200`);
+      if (!res.ok) {
+        const msg = await res.json().catch(() => null);
+        throw new Error(msg?.message || 'Failed to load history');
+      }
+      setHistoryLogs(await res.json());
+    } catch (err: any) {
+      setHistoryError(err?.message || 'Failed to load history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   const handleSaveOutlet = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +156,12 @@ const Outlets: React.FC = () => {
     return map;
   }, [users]);
 
+  const getManagerProfile = (outlet: Outlet) => {
+    if (!outlet.managerId) return undefined;
+    if (outlet.managerId && profile?.uid && outlet.managerId === profile.uid) return profile;
+    return userById.get(outlet.managerId);
+  };
+
   const now = useMemo(() => new Date(), []);
   const EXPIRING_SOON_DAYS = 30;
 
@@ -151,7 +180,7 @@ const Outlets: React.FC = () => {
 
   const normalizedSearch = searchTerm.toLowerCase().trim();
   const filteredOutlets = outlets.filter((outlet) => {
-    const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+    const manager = getManagerProfile(outlet);
     const searchHaystack = [
       outlet.name,
       outlet.location,
@@ -181,17 +210,19 @@ const Outlets: React.FC = () => {
           <h1 className="app-h1">Outlets</h1>
           <p className="app-subtitle">Manage physical store locations and assignments.</p>
         </div>
-        <button
-          onClick={() => {
-            setEditingOutlet(null);
-            setFormData({ name: '', location: '', managerId: '', licenseNumber: '', licenseValidUntil: '' });
-            setIsModalOpen(true);
-          }}
-          className="app-btn-primary rounded-xl"
-        >
-          <Plus size={20} />
-          Add Outlet
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              setEditingOutlet(null);
+              setFormData({ name: '', location: '', managerId: '', licenseNumber: '', licenseValidUntil: '' });
+              setIsModalOpen(true);
+            }}
+            className="app-btn-primary rounded-xl"
+          >
+            <Plus size={20} />
+            Add Outlet
+          </button>
+        )}
       </header>
 
       {/* Filters */}
@@ -283,7 +314,7 @@ const Outlets: React.FC = () => {
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOutlets.map((outlet, i) => {
-          const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+          const manager = getManagerProfile(outlet);
           const daysLeft = getDaysLeft(outlet);
           const licenseUntilLabel = outlet.licenseValidUntil
             ? format(new Date(outlet.licenseValidUntil), 'MMM dd, yyyy')
@@ -302,27 +333,29 @@ const Outlets: React.FC = () => {
                   <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
                     <Store size={24} />
                   </div>
-                  <div className="relative group/menu">
-                    <button type="button" className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-50">
-                      <MoreVertical size={18} />
-                    </button>
-                    <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
-                      <button
-                        type="button"
-                        onClick={() => openEditOutlet(outlet)}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <Edit2 size={14} /> Edit
+                  {isAdmin && (
+                    <div className="relative group/menu">
+                      <button type="button" className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-50">
+                        <MoreVertical size={18} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteOutlet(outlet.id)}
-                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                      >
-                        <Trash2 size={14} /> Delete
-                      </button>
+                      <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all">
+                        <button
+                          type="button"
+                          onClick={() => openEditOutlet(outlet)}
+                          className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <Edit2 size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOutlet(outlet.id)}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <h3 className="text-xl font-bold text-gray-900">{outlet.name}</h3>
@@ -359,6 +392,16 @@ const Outlets: React.FC = () => {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.22em]">
                   Active Location
                 </span>
+                <div className="flex items-center gap-3">
+                  {isManager && (
+                    <button
+                      type="button"
+                      onClick={() => openHistory(outlet)}
+                      className="text-xs font-bold text-gray-700 flex items-center gap-2 hover:underline"
+                    >
+                      <History size={14} /> Added History
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => navigate(`/app/inventory?outletId=${encodeURIComponent(outlet.id)}`)}
@@ -366,6 +409,7 @@ const Outlets: React.FC = () => {
                   >
                     View Inventory <ChevronRight size={14} />
                   </button>
+                </div>
               </div>
             </motion.div>
           );
@@ -391,7 +435,7 @@ const Outlets: React.FC = () => {
             </thead>
             <tbody>
               {filteredOutlets.map((outlet) => {
-                const manager = outlet.managerId ? userById.get(outlet.managerId) : undefined;
+                const manager = getManagerProfile(outlet);
                 const daysLeft = getDaysLeft(outlet);
                 const licenseUntilLabel = outlet.licenseValidUntil
                   ? format(new Date(outlet.licenseValidUntil), 'MMM dd, yyyy')
@@ -431,6 +475,16 @@ const Outlets: React.FC = () => {
                       >
                         Inventory
                       </button>
+                      {isManager && (
+                        <button
+                          type="button"
+                          onClick={() => openHistory(outlet)}
+                          className="text-xs font-bold text-gray-700 hover:underline mr-3"
+                        >
+                          History
+                        </button>
+                      )}
+                      {isAdmin && (
                       <button
                         type="button"
                         onClick={() => openEditOutlet(outlet)}
@@ -438,6 +492,8 @@ const Outlets: React.FC = () => {
                       >
                         Edit
                       </button>
+                      )}
+                      {isAdmin && (
                       <button
                         type="button"
                         onClick={() => handleDeleteOutlet(outlet.id)}
@@ -445,6 +501,7 @@ const Outlets: React.FC = () => {
                       >
                         Delete
                       </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -577,6 +634,110 @@ const Outlets: React.FC = () => {
                     </button>
                   </div>
                 </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Inventory Added History Modal */}
+      <AnimatePresence>
+        {historyOutlet && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setHistoryOutlet(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 12 }}
+              className="relative w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 md:p-8">
+                <div className="flex items-start justify-between gap-4 mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                      <History size={22} />
+                      Inventory Added History
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {historyOutlet.name} • {historyOutlet.location}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOutlet(null)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    aria-label="Close"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+
+                {historyError && (
+                  <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium">
+                    {historyError}
+                  </div>
+                )}
+
+                <div className="app-card overflow-x-auto">
+                  <table className="app-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Product</th>
+                        <th className="text-right">Added</th>
+                        <th className="text-right">Before → After</th>
+                        <th>Added By</th>
+                        <th>Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyLoading ? (
+                        <tr>
+                          <td colSpan={6} className="p-10 text-center text-gray-400 text-sm">
+                            Loading history...
+                          </td>
+                        </tr>
+                      ) : historyLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-10 text-center text-gray-400 text-sm">
+                            No inventory additions recorded yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        historyLogs.map((l) => (
+                          <tr key={l.id}>
+                            <td className="text-sm text-gray-700 whitespace-nowrap">
+                              {format(new Date(l.timestamp), 'MMM dd, yyyy HH:mm')}
+                            </td>
+                            <td>
+                              <div className="font-bold text-gray-900">{l.product?.name || 'Unknown product'}</div>
+                              {l.product?.sku && <div className="text-xs text-gray-500">SKU: {l.product.sku}</div>}
+                            </td>
+                            <td className="text-right font-bold text-green-700">+{l.quantityAdded}</td>
+                            <td className="text-right text-sm text-gray-700">
+                              {l.previousQuantity} → <span className="font-bold">{l.newQuantity}</span>
+                            </td>
+                            <td className="text-sm text-gray-700">
+                              {l.addedBy?.displayName || l.addedBy?.email || 'Unknown'}
+                              {l.addedBy?.role && (
+                                <span className="text-xs text-gray-400 ml-2">({l.addedBy.role})</span>
+                              )}
+                            </td>
+                            <td className="text-sm text-gray-700">
+                              {l.source === 'transfer_in' ? 'Transfer In' : 'Manual'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </motion.div>
           </div>

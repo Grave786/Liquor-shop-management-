@@ -43,7 +43,7 @@ const Layout: React.FC = () => {
     { name: 'Inventory', path: '/app/inventory', icon: Package, show: true },
     { name: 'Sales', path: '/app/sales', icon: ShoppingCart, show: true },
     { name: 'Stock Transfer', path: '/app/transfers', icon: ArrowLeftRight, show: isManager },
-    { name: 'Outlets', path: '/app/outlets', icon: Store, show: isAdmin },
+    { name: 'Outlets', path: '/app/outlets', icon: Store, show: isManager },
     { name: 'Users', path: '/app/users', icon: Users, show: isAdmin },
     { name: 'Access Requests', path: '/app/access-requests', icon: UserCheck, show: isSuperAdmin },
   ];

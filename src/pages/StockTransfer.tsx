@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../AuthContext';
-import { Product, InventoryItem, Outlet, StockTransfer } from '../types';
+import { Product, InventoryItem, Outlet, StockTransfer, StockTransferEvent } from '../types';
 import { 
   Plus, 
   ArrowRight, 
@@ -25,6 +25,9 @@ const StockTransfers: React.FC = () => {
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [trackingTransfer, setTrackingTransfer] = useState<StockTransfer | null>(null);
+  const [trackingNote, setTrackingNote] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,6 +139,34 @@ const StockTransfers: React.FC = () => {
     }
   };
 
+  const handleAddTrackingNote = async () => {
+    if (!trackingTransfer) return;
+    const note = trackingNote.trim();
+    if (!note) return;
+
+    setSavingNote(true);
+    try {
+      const res = await apiFetch(`/api/transfers/${trackingTransfer.id}/events`, {
+        method: 'POST',
+        body: JSON.stringify({ note })
+      });
+      if (!res.ok) {
+        const message = await readApiError(res);
+        throw new Error(message || 'Failed to add note');
+      }
+
+      const updated: StockTransfer = await res.json();
+      setTransfers(prev => prev.map(t => (t.id === updated.id ? updated : t)));
+      setTrackingTransfer(updated);
+      setTrackingNote('');
+    } catch (err: any) {
+      console.error('Add tracking note error:', err);
+      alert(err.message || 'Failed to add note');
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <header className="flex justify-between items-center">
@@ -210,6 +241,13 @@ const StockTransfers: React.FC = () => {
                       {transfer.status === 'pending' ? (
                         <div className="flex justify-end gap-2">
                           <button
+                            onClick={() => setTrackingTransfer(transfer)}
+                            className="p-2 text-blue-700 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Track / Notes"
+                          >
+                            <ChevronRight size={18} />
+                          </button>
+                          <button
                             onClick={() => handleCompleteTransfer(transfer)}
                             className="p-2 text-green-700 hover:bg-green-50 rounded-xl transition-all"
                             title="Complete Transfer"
@@ -232,7 +270,14 @@ const StockTransfers: React.FC = () => {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setTrackingTransfer(transfer)}
+                            className="p-2 text-blue-700 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Track / Notes"
+                          >
+                            <ChevronRight size={18} />
+                          </button>
                           <button
                             onClick={() => handleDeleteTransfer(transfer.id)}
                             className="p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
@@ -354,6 +399,154 @@ const StockTransfers: React.FC = () => {
                   </div>
                 </form>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tracking / Notes */}
+      <AnimatePresence>
+        {trackingTransfer && (
+          <div className="fixed inset-0 z-[110] flex items-start sm:items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTrackingTransfer(null)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[calc(100dvh-2rem)] overflow-y-auto"
+            >
+              {(() => {
+                const product = products.find(p => p.id === trackingTransfer.productId);
+                const fromOutlet = outlets.find(o => o.id === trackingTransfer.fromOutletId);
+                const toOutlet = outlets.find(o => o.id === trackingTransfer.toOutletId);
+
+                const baseEvents: StockTransferEvent[] = Array.isArray(trackingTransfer.events) ? trackingTransfer.events : [];
+                const hasCreated = baseEvents.some(e => e.type === 'created');
+                const inferredCreated: StockTransferEvent = { type: 'created', timestamp: trackingTransfer.timestamp };
+                const events: StockTransferEvent[] = [
+                  ...(hasCreated ? [] : [inferredCreated]),
+                  ...baseEvents,
+                ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                const canAddNotes = Boolean(isAdmin || isManager);
+
+                return (
+                  <div className="p-8">
+                    <div className="flex justify-between items-start gap-4 mb-6">
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Transfer Tracking</h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {product?.name || 'Unknown Product'} • {trackingTransfer.quantity} units
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1 flex items-center gap-2">
+                          <span className="font-medium">{fromOutlet?.name || 'Unknown'}</span>
+                          <ArrowRight size={14} className="text-gray-400" />
+                          <span className="font-medium">{toOutlet?.name || 'Unknown'}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                          trackingTransfer.status === 'completed' ? "bg-green-50 text-green-700" :
+                          trackingTransfer.status === 'pending' ? "bg-amber-50 text-amber-600" :
+                          "bg-red-50 text-red-600"
+                        )}>
+                          {trackingTransfer.status === 'completed' ? <CheckCircle2 size={12} /> :
+                           trackingTransfer.status === 'pending' ? <Clock size={12} /> :
+                           <XCircle size={12} />}
+                          {trackingTransfer.status}
+                        </div>
+                        <button
+                          onClick={() => setTrackingTransfer(null)}
+                          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                          aria-label="Close"
+                        >
+                          <X size={22} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-5">
+                      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Timeline</p>
+                      <div className="space-y-4">
+                        {events.length === 0 ? (
+                          <p className="text-sm text-gray-600">No tracking events yet.</p>
+                        ) : (
+                          events.map((e, idx) => {
+                            const who = e.userId
+                              ? (e.userId === profile?.uid ? 'You' : `User ${String(e.userId).slice(0, 6)}…`)
+                              : 'System';
+
+                            let title = 'Update';
+                            let detail = '';
+                            if (e.type === 'created') {
+                              title = 'Created';
+                            } else if (e.type === 'status_changed') {
+                              title = 'Status changed';
+                              if (e.statusFrom && e.statusTo) detail = `${e.statusFrom} → ${e.statusTo}`;
+                            } else if (e.type === 'note') {
+                              title = 'Note';
+                              detail = e.note || '';
+                            }
+
+                            return (
+                              <div key={`${e.type}-${e.timestamp}-${idx}`} className="flex items-start gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center border border-gray-200 text-gray-700">
+                                  {e.type === 'note' ? <AlertCircle size={18} /> : <Clock size={18} />}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-baseline justify-between gap-4">
+                                    <p className="text-sm font-bold text-gray-900">{title}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {format(new Date(e.timestamp), 'MMM dd, h:mm a')}
+                                    </p>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">By {who}</p>
+                                  {detail ? (
+                                    <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{detail}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+
+                    {canAddNotes && (
+                      <div className="mt-6">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Add Note</p>
+                        <div className="flex gap-3">
+                          <input
+                            value={trackingNote}
+                            onChange={(e) => setTrackingNote(e.target.value)}
+                            placeholder="E.g., Driver picked up stock, ETA 6pm"
+                            className="flex-1 px-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={handleAddTrackingNote}
+                            disabled={savingNote || !trackingNote.trim()}
+                            className={cn(
+                              "px-5 py-3 text-sm font-bold rounded-xl transition-all",
+                              savingNote || !trackingNote.trim()
+                                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200"
+                            )}
+                          >
+                            {savingNote ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </motion.div>
           </div>
         )}

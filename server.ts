@@ -108,6 +108,18 @@ const inventorySchema = new mongoose.Schema({
   lastUpdated: { type: Date, default: Date.now }
 });
 
+const inventoryAdditionSchema = new mongoose.Schema({
+  outletId: { type: String, required: true },
+  productId: { type: String, required: true },
+  quantityAdded: { type: Number, required: true },
+  previousQuantity: { type: Number, required: true, default: 0 },
+  newQuantity: { type: Number, required: true },
+  addedByUserId: { type: String, required: true },
+  source: { type: String, enum: ['manual', 'transfer_in'], required: true },
+  transferId: { type: String },
+  timestamp: { type: Date, default: Date.now },
+});
+
 const saleSchema = new mongoose.Schema({
   outletId: { type: String, required: true },
   userId: { type: String, required: true },
@@ -124,12 +136,27 @@ const saleSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+const transferEventSchema = new mongoose.Schema(
+  {
+    type: { type: String, enum: ['created', 'status_changed', 'note'], required: true },
+    statusFrom: { type: String, enum: ['pending', 'completed', 'cancelled'] },
+    statusTo: { type: String, enum: ['pending', 'completed', 'cancelled'] },
+    note: { type: String },
+    userId: { type: String },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const transferSchema = new mongoose.Schema({
   fromOutletId: { type: String, required: true },
   toOutletId: { type: String, required: true },
   productId: { type: String, required: true },
   quantity: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'completed', 'cancelled'], default: 'pending' },
+  createdByUserId: { type: String },
+  lastUpdatedByUserId: { type: String },
+  events: { type: [transferEventSchema], default: [] },
   timestamp: { type: Date, default: Date.now }
 });
 
@@ -154,6 +181,7 @@ const User = mongoose.model('User', userSchema);
 const Outlet = mongoose.model('Outlet', outletSchema);
 const Product = mongoose.model('Product', productSchema);
 const Inventory = mongoose.model('Inventory', inventorySchema);
+const InventoryAddition = mongoose.model('InventoryAddition', inventoryAdditionSchema);
 const Sale = mongoose.model('Sale', saleSchema);
 const Transfer = mongoose.model('Transfer', transferSchema);
 const AccessRequest = mongoose.model('AccessRequest', accessRequestSchema);
@@ -738,17 +766,104 @@ app.get('/api/inventory', authenticateToken, async (req, res) => {
 app.post('/api/inventory', authenticateToken, async (req, res) => {
   try {
     const { productId, outletId, quantity } = req.body;
+    const nextQuantity = Number(quantity ?? 0);
     let item = await Inventory.findOne({ productId, outletId });
+    const previousQuantity = item ? Number((item as any).quantity ?? 0) : 0;
     if (item) {
-      item.quantity = quantity;
+      item.quantity = nextQuantity;
       item.lastUpdated = new Date();
     } else {
-      item = new Inventory(req.body);
+      item = new Inventory({ ...req.body, quantity: nextQuantity, lastUpdated: new Date() });
     }
     await item.save();
+
+    const quantityAdded = nextQuantity - previousQuantity;
+    if (quantityAdded > 0) {
+      await new InventoryAddition({
+        outletId: String(outletId),
+        productId: String(productId),
+        quantityAdded,
+        previousQuantity,
+        newQuantity: nextQuantity,
+        addedByUserId: String((req as any).user?.id || ''),
+        source: 'manual',
+      }).save();
+    }
+
     res.status(201).json({ id: item._id, productId: item.productId, outletId: item.outletId, quantity: item.quantity, lastUpdated: item.lastUpdated });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
+  }
+});
+
+// Outlet Inventory Additions History (admin + manager view only)
+app.get('/api/outlets/:id/inventory-additions', authenticateToken, async (req: any, res: any) => {
+  try {
+    const role = String(req.user?.role || '');
+    const userId = String(req.user?.id || '');
+    const outletId = String(req.params.id || '').trim();
+    const limitRaw = Number(req.query?.limit ?? 200);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 500) : 200;
+
+    if (!['super_admin', 'admin', 'manager'].includes(role)) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const outlet = await Outlet.findById(outletId).select('_id createdBy managerId');
+    if (!outlet) return res.status(404).json({ message: 'Outlet not found' });
+
+    if (role === 'admin') {
+      if (String((outlet as any).createdBy || '') !== userId) {
+        return res.status(403).json({ message: 'Admins can only view outlets they created' });
+      }
+    } else if (role === 'manager') {
+      const actingUser = await User.findById(userId).select('outletId');
+      const assignedOutletId = String((actingUser as any)?.outletId || '');
+      const isOutletMatch = assignedOutletId ? assignedOutletId === outletId : false;
+      const isManagerMatch = String((outlet as any).managerId || '') === userId;
+      if (!isOutletMatch && !isManagerMatch) {
+        return res.status(403).json({ message: 'Unauthorized outlet' });
+      }
+    }
+
+    const logs = await InventoryAddition.find({ outletId }).sort({ timestamp: -1 }).limit(limit);
+
+    const productIds = new Set<string>();
+    const userIds = new Set<string>();
+    for (const l of logs) {
+      if ((l as any).productId) productIds.add(String((l as any).productId));
+      if ((l as any).addedByUserId) userIds.add(String((l as any).addedByUserId));
+    }
+
+    const [productDocs, userDocs] = await Promise.all([
+      Product.find(productIds.size ? { _id: { $in: Array.from(productIds) } } : {}).select('_id name sku category'),
+      User.find(userIds.size ? { _id: { $in: Array.from(userIds) } } : {}).select('_id email displayName role'),
+    ]);
+
+    const productById = new Map<string, any>();
+    for (const p of productDocs) productById.set(String((p as any)._id), p);
+    const userById = new Map<string, any>();
+    for (const u of userDocs) userById.set(String((u as any)._id), u);
+
+    return res.json(logs.map((l: any) => {
+      const p = productById.get(String(l.productId));
+      const u = userById.get(String(l.addedByUserId));
+      return {
+        id: l._id,
+        outletId: l.outletId,
+        productId: l.productId,
+        product: p ? { id: p._id, name: p.name, sku: p.sku, category: p.category } : null,
+        quantityAdded: l.quantityAdded,
+        previousQuantity: l.previousQuantity,
+        newQuantity: l.newQuantity,
+        addedBy: u ? { id: u._id, email: u.email, displayName: u.displayName, role: u.role } : null,
+        source: l.source,
+        transferId: l.transferId,
+        timestamp: l.timestamp,
+      };
+    }));
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message });
   }
 });
 
@@ -1094,7 +1209,20 @@ app.post('/api/sales/:id/send-sms', authenticateToken, async (req: any, res: any
 app.get('/api/transfers', authenticateToken, async (req, res) => {
   try {
     const transfers = await Transfer.find().sort({ timestamp: -1 });
-    res.json(transfers.map(t => ({ id: t._id, fromOutletId: t.fromOutletId, toOutletId: t.toOutletId, productId: t.productId, quantity: t.quantity, status: t.status, timestamp: t.timestamp })));
+    res.json(
+      transfers.map(t => ({
+        id: t._id,
+        fromOutletId: t.fromOutletId,
+        toOutletId: t.toOutletId,
+        productId: t.productId,
+        quantity: t.quantity,
+        status: t.status,
+        createdByUserId: (t as any).createdByUserId,
+        lastUpdatedByUserId: (t as any).lastUpdatedByUserId,
+        events: (t as any).events,
+        timestamp: t.timestamp,
+      }))
+    );
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -1102,9 +1230,33 @@ app.get('/api/transfers', authenticateToken, async (req, res) => {
 
 app.post('/api/transfers', authenticateToken, async (req, res) => {
   try {
-    const transfer = new Transfer(req.body);
+    const transfer = new Transfer({
+      fromOutletId: req.body?.fromOutletId,
+      toOutletId: req.body?.toOutletId,
+      productId: req.body?.productId,
+      quantity: req.body?.quantity,
+      createdByUserId: String((req as any).user?.id || ''),
+      lastUpdatedByUserId: String((req as any).user?.id || ''),
+      events: [
+        {
+          type: 'created',
+          userId: String((req as any).user?.id || ''),
+        },
+      ],
+    });
     await transfer.save();
-    res.status(201).json({ id: transfer._id, fromOutletId: transfer.fromOutletId, toOutletId: transfer.toOutletId, productId: transfer.productId, quantity: transfer.quantity, status: transfer.status, timestamp: transfer.timestamp });
+    res.status(201).json({
+      id: transfer._id,
+      fromOutletId: transfer.fromOutletId,
+      toOutletId: transfer.toOutletId,
+      productId: transfer.productId,
+      quantity: transfer.quantity,
+      status: transfer.status,
+      createdByUserId: (transfer as any).createdByUserId,
+      lastUpdatedByUserId: (transfer as any).lastUpdatedByUserId,
+      events: (transfer as any).events,
+      timestamp: transfer.timestamp,
+    });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
   }
@@ -1119,6 +1271,9 @@ app.patch('/api/transfers/:id', authenticateToken, async (req, res) => {
 
     const oldStatus = transfer.status;
     const newStatus = req.body.status;
+    if (!['pending', 'completed', 'cancelled'].includes(newStatus)) {
+      throw new Error('Invalid status');
+    }
 
     if (oldStatus === 'pending' && newStatus === 'completed') {
       // Deduct from source
@@ -1131,23 +1286,94 @@ app.patch('/api/transfers/:id', authenticateToken, async (req, res) => {
 
       // Add to destination
       let toInv = await Inventory.findOne({ productId: transfer.productId, outletId: transfer.toOutletId }).session(session);
+      const previousQuantity = toInv ? Number((toInv as any).quantity ?? 0) : 0;
       if (!toInv) {
         toInv = new Inventory({ productId: transfer.productId, outletId: transfer.toOutletId, quantity: 0 });
       }
       toInv.quantity += transfer.quantity;
       await toInv.save({ session });
+
+      await new InventoryAddition({
+        outletId: String(transfer.toOutletId),
+        productId: String(transfer.productId),
+        quantityAdded: Number(transfer.quantity),
+        previousQuantity,
+        newQuantity: Number((toInv as any).quantity ?? (previousQuantity + Number(transfer.quantity))),
+        addedByUserId: String((req as any).user?.id || ''),
+        source: 'transfer_in',
+        transferId: String(transfer._id),
+      }).save({ session });
     }
 
     transfer.status = newStatus;
+    (transfer as any).lastUpdatedByUserId = String((req as any).user?.id || '');
+    if (oldStatus !== newStatus) {
+      (transfer as any).events = [
+        ...(((transfer as any).events || []) as any[]),
+        {
+          type: 'status_changed',
+          statusFrom: oldStatus,
+          statusTo: newStatus,
+          userId: String((req as any).user?.id || ''),
+        },
+      ];
+    }
     await transfer.save({ session });
 
     await session.commitTransaction();
-    res.json({ id: transfer._id, fromOutletId: transfer.fromOutletId, toOutletId: transfer.toOutletId, productId: transfer.productId, quantity: transfer.quantity, status: transfer.status, timestamp: transfer.timestamp });
+    res.json({
+      id: transfer._id,
+      fromOutletId: transfer.fromOutletId,
+      toOutletId: transfer.toOutletId,
+      productId: transfer.productId,
+      quantity: transfer.quantity,
+      status: transfer.status,
+      createdByUserId: (transfer as any).createdByUserId,
+      lastUpdatedByUserId: (transfer as any).lastUpdatedByUserId,
+      events: (transfer as any).events,
+      timestamp: transfer.timestamp,
+    });
   } catch (err: any) {
     await session.abortTransaction();
     res.status(400).json({ message: err.message });
   } finally {
     session.endSession();
+  }
+});
+
+app.post('/api/transfers/:id/events', authenticateToken, async (req: any, res: any) => {
+  try {
+    const note = String(req.body?.note || '').trim();
+    if (!note) return res.status(400).json({ message: 'Note is required' });
+
+    const transfer = await Transfer.findById(req.params.id);
+    if (!transfer) return res.status(404).json({ message: 'Transfer not found' });
+
+    (transfer as any).lastUpdatedByUserId = String(req.user?.id || '');
+    (transfer as any).events = [
+      ...(((transfer as any).events || []) as any[]),
+      {
+        type: 'note',
+        note,
+        userId: String(req.user?.id || ''),
+      },
+    ];
+    await transfer.save();
+
+    return res.status(201).json({
+      id: transfer._id,
+      fromOutletId: transfer.fromOutletId,
+      toOutletId: transfer.toOutletId,
+      productId: transfer.productId,
+      quantity: transfer.quantity,
+      status: transfer.status,
+      createdByUserId: (transfer as any).createdByUserId,
+      lastUpdatedByUserId: (transfer as any).lastUpdatedByUserId,
+      events: (transfer as any).events,
+      timestamp: transfer.timestamp,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ message: err.message });
   }
 });
 

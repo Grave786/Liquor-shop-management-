@@ -106,6 +106,17 @@ All routes are under `/api` and (except auth) require `Authorization: Bearer <to
 - `npm run lint`: TypeScript typecheck
 - `npm run clean`: delete `dist/`
 
+## Verification (Quick)
+
+Run these as two separate commands:
+
+```bash
+npm run lint
+npm run build
+```
+
+If you hit a Windows `spawn EPERM` error from `esbuild` during `vite` builds, it can be related to file locking/AV/OneDrive sync. Re-try the build, and consider moving the repo out of a synced folder.
+
 ## Notes
 
 - Don’t commit `.env` files. This repo’s `.gitignore` is configured to ignore `.env*` and keep `.env.example`.
