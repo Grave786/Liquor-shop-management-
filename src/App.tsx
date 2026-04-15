@@ -31,7 +31,7 @@ export default function App() {
               <Route path="transactions" element={<Transactions />} />
               <Route path="transfers" element={<AuthGuard requiredRole="manager"><StockTransfers /></AuthGuard>} />
               <Route path="outlets" element={<AuthGuard requiredRole="manager"><Outlets /></AuthGuard>} />
-              <Route path="users" element={<AuthGuard requiredRole="admin"><Users /></AuthGuard>} />
+              <Route path="users" element={<AuthGuard requiredRole="manager"><Users /></AuthGuard>} />
               <Route path="access-requests" element={<AuthGuard requiredRole="super_admin"><AccessRequests /></AuthGuard>} />
             </Route>
 

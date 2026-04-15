@@ -24,6 +24,7 @@ import { useTheme } from '../ThemeContext';
 import LoginPanel from '../components/LoginPanel';
 
 type NavItem = { label: string; href: string };
+type ScreenshotId = 'dashboard' | 'inventory' | 'sales' | 'outlet' | 'users';
 
 const Landing: React.FC = () => {
   const { user } = useAuth();
@@ -34,9 +35,12 @@ const Landing: React.FC = () => {
   const [searchParams] = useSearchParams();
   const loginRequested = searchParams.get('login') === '1';
   const [loginOpen, setLoginOpen] = useState(loginRequested);
+  const [accessModalOpen, setAccessModalOpen] = useState(false);
   const [accessSubmitting, setAccessSubmitting] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessSuccess, setAccessSuccess] = useState<string | null>(null);
+  const [screenshotOpen, setScreenshotOpen] = useState<null | ScreenshotId>(null);
+  const [activePreview, setActivePreview] = useState<ScreenshotId>('dashboard');
   const [accessForm, setAccessForm] = useState({
     fullName: '',
     email: '',
@@ -50,6 +54,37 @@ const Landing: React.FC = () => {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusResult, setStatusResult] = useState<any | null>(null);
+
+  const screenshots = useMemo(
+    () => [
+      {
+        id: 'dashboard' as const,
+        title: 'Dashboard preview',
+        src: '/dashboard.png',
+      },
+      {
+        id: 'inventory' as const,
+        title: 'Inventory preview',
+        src: '/inventory.png',
+      },
+      {
+        id: 'sales' as const,
+        title: 'Sales preview',
+        src: '/sales.png',
+      },
+      {
+        id: 'outlet' as const,
+        title: 'Outlets preview',
+        src: '/outlet.png',
+      },
+      {
+        id: 'users' as const,
+        title: 'Users preview',
+        src: '/user_management.png',
+      },
+    ],
+    [],
+  );
 
   const navItems: NavItem[] = useMemo(
     () => [
@@ -103,6 +138,10 @@ const Landing: React.FC = () => {
     navigate({ pathname: '/', search: '', hash: location.hash }, { replace: true, state: location.state });
   };
 
+  const openAccessModal = () => setAccessModalOpen(true);
+  const closeAccessModal = () => setAccessModalOpen(false);
+  const closeScreenshot = () => setScreenshotOpen(null);
+
   const submitAccessRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccessSubmitting(true);
@@ -133,6 +172,7 @@ const Landing: React.FC = () => {
       }
 
       setAccessSuccess('Request sent to Super Admin. After approval, you can login.');
+      closeAccessModal();
       setStatusForm({ email: submittedEmail, phone: submittedPhone });
       try {
         localStorage.setItem('access_request_last', JSON.stringify({ email: submittedEmail, phone: submittedPhone }));
@@ -180,7 +220,7 @@ const Landing: React.FC = () => {
   };
 
   return (
-    <div id="top" className="min-h-screen text-[color:var(--app-fg)]">
+    <div id="top" className="min-h-screen overflow-x-hidden text-[color:var(--app-fg)]">
       {/* Ambient background */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-24 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[color:var(--app-accent)]/10 blur-[90px]" />
@@ -324,14 +364,14 @@ const Landing: React.FC = () => {
             aria-modal="true"
             aria-label="Login"
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 10 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-              className="relative w-full max-w-md max-h-[90dvh]"
-              onClick={(e) => e.stopPropagation()}
-            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+                className="relative w-full max-w-md max-h-[95dvh] overflow-y-auto no-scrollbar"
+                onClick={(e) => e.stopPropagation()}
+              >
               <button
                 type="button"
                 onClick={closeLogin}
@@ -341,8 +381,206 @@ const Landing: React.FC = () => {
               >
                 <X size={18} />
               </button>
-              <div className="overflow-y-auto max-h-[90dvh] pr-0">
-                <LoginPanel />
+              <LoginPanel />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {accessModalOpen && (
+          <motion.div
+            key="access-request-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:items-center"
+            onClick={closeAccessModal}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Request access"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              className="relative w-full max-w-2xl max-h-[90dvh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closeAccessModal}
+                className="absolute top-3 right-3 app-btn-icon bg-[color:var(--app-surface-bg)] shadow-lg"
+                aria-label="Close request access"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="app-card overflow-y-auto max-h-[90dvh]">
+                <div className="app-card-header">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">New account</p>
+                    <p className="text-lg font-black">Request access</p>
+                    <p className="mt-1 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
+                      Super Admin approval is required before you can login.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <form onSubmit={submitAccessRequest} className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Full name *
+                      </label>
+                      <input
+                        required
+                        className="app-input"
+                        value={accessForm.fullName}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, fullName: e.target.value }))}
+                        placeholder="Your name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Contact number *
+                      </label>
+                      <input
+                        required
+                        className="app-input"
+                        value={accessForm.phone}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, phone: e.target.value }))}
+                        placeholder="Phone / WhatsApp"
+                        inputMode="tel"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Email *
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        className="app-input"
+                        value={accessForm.email}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, email: e.target.value }))}
+                        placeholder="name@company.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Country *
+                      </label>
+                      <input
+                        required
+                        className="app-input"
+                        value={accessForm.country}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, country: e.target.value }))}
+                        placeholder="India"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Business / shop name *
+                      </label>
+                      <input
+                        required
+                        className="app-input"
+                        value={accessForm.businessName}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, businessName: e.target.value }))}
+                        placeholder="Your business name"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                        Requirements (optional)
+                      </label>
+                      <textarea
+                        className="app-input min-h-[96px] py-3"
+                        value={accessForm.message}
+                        onChange={(e) => setAccessForm((s) => ({ ...s, message: e.target.value }))}
+                        placeholder="e.g., number of outlets, barcode, GST invoice, etc."
+                      />
+                    </div>
+
+                    {accessError && (
+                      <div className="sm:col-span-2 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-bold text-red-600">
+                        {accessError}
+                      </div>
+                    )}
+                    {accessSuccess && (
+                      <div className="sm:col-span-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm font-bold text-emerald-600">
+                        {accessSuccess}
+                      </div>
+                    )}
+
+                    <div className="sm:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold text-[color:var(--app-muted)]">
+                        Super Admin: <span className="text-[color:var(--app-fg)]">Requin Solution Pvt Ltd</span>
+                      </p>
+                      <button type="submit" disabled={accessSubmitting} className="app-btn-primary-lg disabled:opacity-60">
+                        {accessSubmitting ? 'Sending...' : 'Request Access'}
+                        <ArrowRight size={18} />
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {!!screenshotOpen && (
+          <motion.div
+            key="screenshot-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+            onClick={closeScreenshot}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Screenshot preview"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: 10 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              className="relative w-full max-w-6xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closeScreenshot}
+                className="absolute top-3 right-3 app-btn-icon bg-[color:var(--app-surface-bg)] shadow-lg"
+                aria-label="Close preview"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="app-card overflow-hidden">
+                <div className="app-card-header">
+                  <p className="text-sm font-black">
+                    {screenshots.find((s) => s.id === screenshotOpen)?.title || 'Preview'}
+                  </p>
+                  <span className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                    Click outside to close
+                  </span>
+                </div>
+                <div className="p-4 sm:p-6">
+                  <img
+                    className="w-full max-h-[75dvh] object-contain rounded-3xl border border-white/10 bg-black/20"
+                    src={screenshots.find((s) => s.id === screenshotOpen)?.src}
+                    alt={screenshots.find((s) => s.id === screenshotOpen)?.title || 'Preview'}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -482,7 +720,7 @@ const Landing: React.FC = () => {
           </div>
 
           {/* Full-width feature strip */}
-          <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen border-t border-white/10 bg-white/5">
+          <div className="border-t border-white/10 bg-white/5">
             <div className="w-full px-4 py-4 sm:px-6 lg:px-12 2xl:px-20">
               <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
                 {[
@@ -575,7 +813,7 @@ const Landing: React.FC = () => {
         <section id="modules" className="scroll-mt-24 border-t border-white/10">
           <div className="w-full px-4 py-14 sm:px-6 lg:px-12 2xl:px-20">
             <div className="grid gap-10 lg:grid-cols-2">
-              <div>
+              <div className="lg:col-span-2">
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">Modules</p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight">A clear workflow from stock → sale → report</h2>
                 <p className="mt-3 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
@@ -599,50 +837,161 @@ const Landing: React.FC = () => {
                 </div>
               </div>
 
-              <div className="app-card">
-                <div className="app-card-header">
-                  <p className="text-sm font-black">Typical flow</p>
-                  <span className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                    3 steps
-                  </span>
-                </div>
-                <div className="p-6">
-                  <ol className="space-y-4">
-                    {[
-                      {
-                        n: '01',
-                        title: 'Set up outlets & roles',
-                        desc: 'Admins create outlets and users; managers operate assigned outlets.',
-                      },
-                      {
-                        n: '02',
-                        title: 'Maintain products & stock',
-                        desc: 'Add products and update inventory by outlet. Catch low stock early.',
-                      },
-                      {
-                        n: '03',
-                        title: 'Record sales & review reports',
-                        desc: 'Sales decrement inventory safely. Review transactions anytime.',
-                      },
-                    ].map((s) => (
-                      <li key={s.n} className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                        <div className="flex items-start gap-4">
-                          <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-sm font-black">
-                            {s.n}
+              <div className="grid gap-6 lg:grid-cols-2 lg:col-span-2">
+                <div className="app-card">
+                  <div className="app-card-header">
+                    <p className="text-sm font-black">Typical flow</p>
+                    <span className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                      3 steps
+                    </span>
+                  </div>
+                  <div className="p-6">
+                    <ol className="space-y-4">
+                      {[
+                        {
+                          n: '01',
+                          title: 'Set up outlets & roles',
+                          desc: 'Admins create outlets and users; managers operate assigned outlets.',
+                        },
+                        {
+                          n: '02',
+                          title: 'Maintain products & stock',
+                          desc: 'Add products and update inventory by outlet. Catch low stock early.',
+                        },
+                        {
+                          n: '03',
+                          title: 'Record sales & review reports',
+                          desc: 'Sales decrement inventory safely. Review transactions anytime.',
+                        },
+                      ].map((s) => (
+                        <li key={s.n} className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                          <div className="flex items-start gap-4">
+                            <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-sm font-black">
+                              {s.n}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-base font-black">{s.title}</p>
+                              <p className="mt-1 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
+                                {s.desc}
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-base font-black">{s.title}</p>
-                            <p className="mt-1 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
-                              {s.desc}
-                            </p>
+                        </li>
+                      ))}
+                    </ol>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                      {[
+                        {
+                          icon: ShieldCheck,
+                          title: 'Role control',
+                          desc: 'Clear access by role.',
+                        },
+                        {
+                          icon: Store,
+                          title: 'Multi-outlet',
+                          desc: 'Track stock per outlet.',
+                        },
+                        {
+                          icon: BarChart3,
+                          title: 'Sales insights',
+                          desc: 'Reports that update fast.',
+                        },
+                      ].map((c) => (
+                        <div key={c.title} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[color:var(--app-accent-soft-2)] text-[color:var(--app-accent)]">
+                              <c.icon size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black">{c.title}</p>
+                              <p className="mt-1 text-xs font-semibold text-[color:var(--app-muted)]">{c.desc}</p>
+                            </div>
                           </div>
                         </div>
-                      </li>
-                    ))}
-                  </ol>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                  <div className="app-card">
+                    <div className="app-card-header">
+                      <p className="text-sm font-black">App previews</p>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {screenshots.map((shot) => (
+                          <button
+                            key={shot.id}
+                            type="button"
+                            onClick={() => setActivePreview(shot.id)}
+                            className={[
+                              'rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.22em] transition',
+                              activePreview === shot.id
+                                ? 'bg-[color:var(--app-accent)] text-[color:var(--app-accent-contrast)] shadow'
+                                : 'border border-white/10 bg-white/5 text-[color:var(--app-muted)] hover:bg-white/10',
+                            ].join(' ')}
+                          >
+                            {shot.title.replace(' preview', '')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                    <button
+                      type="button"
+                      onClick={() => setScreenshotOpen(activePreview)}
+                      className="group block w-full text-left"
+                      title="Open preview"
+                    >
+                      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-black/20 aspect-[16/9]">
+                        <div className="absolute inset-0 p-3 sm:p-4">
+                          <img
+                            src={screenshots.find((s) => s.id === activePreview)?.src}
+                            alt={screenshots.find((s) => s.id === activePreview)?.title || 'Preview'}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-contain object-center opacity-95 transition group-hover:opacity-100"
+                          />
+                        </div>
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-gradient-to-t from-black/70 to-transparent p-4">
+                          <p className="text-sm font-black">
+                            {screenshots.find((s) => s.id === activePreview)?.title || 'Preview'}
+                          </p>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-black">
+                            Zoom <ArrowUpRight size={14} />
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                        {screenshots.map((shot) => (
+                          <button
+                            key={shot.id}
+                            type="button"
+                            onClick={() => setActivePreview(shot.id)}
+                            className={[
+                              'group relative overflow-hidden rounded-3xl border bg-white/5 text-left transition',
+                              activePreview === shot.id ? 'border-white/30' : 'border-white/10 hover:border-white/20',
+                            ].join(' ')}
+                            title="Switch preview"
+                          >
+                            <img
+                              src={shot.src}
+                              alt={shot.title}
+                              loading="lazy"
+                              decoding="async"
+                              className="h-24 w-full object-cover opacity-90 transition group-hover:opacity-100"
+                            />
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                              <p className="text-xs font-black">{shot.title}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
         </section>
 
@@ -767,81 +1116,11 @@ const Landing: React.FC = () => {
                       New user? Fill this form. Super Admin approval is required before you can login.
                     </p>
 
-                    <form onSubmit={submitAccessRequest} className="mt-5 grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Full name *
-                        </label>
-                        <input
-                          required
-                          className="app-input"
-                          value={accessForm.fullName}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, fullName: e.target.value }))}
-                          placeholder="Your name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Contact number *
-                        </label>
-                        <input
-                          required
-                          className="app-input"
-                          value={accessForm.phone}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, phone: e.target.value }))}
-                          placeholder="Phone / WhatsApp"
-                          inputMode="tel"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Email *
-                        </label>
-                        <input
-                          required
-                          type="email"
-                          className="app-input"
-                          value={accessForm.email}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, email: e.target.value }))}
-                          placeholder="name@company.com"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Country *
-                        </label>
-                        <input
-                          required
-                          className="app-input"
-                          value={accessForm.country}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, country: e.target.value }))}
-                          placeholder="India"
-                        />
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Business / shop name *
-                        </label>
-                        <input
-                          required
-                          className="app-input"
-                          value={accessForm.businessName}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, businessName: e.target.value }))}
-                          placeholder="Your business name"
-                        />
-                      </div>
-                      <div className="space-y-2 sm:col-span-2">
-                        <label className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
-                          Requirements (optional)
-                        </label>
-                        <textarea
-                          className="app-input min-h-[96px] py-3"
-                          value={accessForm.message}
-                          onChange={(e) => setAccessForm((s) => ({ ...s, message: e.target.value }))}
-                          placeholder="e.g., number of outlets, barcode, GST invoice, etc."
-                        />
-                      </div>
-
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <button type="button" onClick={openAccessModal} className="app-btn-primary-lg sm:col-span-2">
+                        Request Access
+                        <ArrowRight size={18} />
+                      </button>
                       {accessError && (
                         <div className="sm:col-span-2 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-sm font-bold text-red-600">
                           {accessError}
@@ -852,17 +1131,7 @@ const Landing: React.FC = () => {
                           {accessSuccess}
                         </div>
                       )}
-
-                      <div className="sm:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-bold text-[color:var(--app-muted)]">
-                          Super Admin: <span className="text-[color:var(--app-fg)]">Requin Solution Pvt Ltd</span>
-                        </p>
-                        <button type="submit" disabled={accessSubmitting} className="app-btn-primary-lg disabled:opacity-60">
-                          {accessSubmitting ? 'Sending...' : 'Request Access'}
-                          <ArrowRight size={18} />
-                        </button>
-                      </div>
-                    </form>
+                    </div>
 
                     <div className="mt-5 rounded-3xl border border-white/10 bg-white/5 p-5">
                       <p className="text-sm font-black">Check request status</p>

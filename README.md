@@ -5,6 +5,7 @@ A full-stack inventory + sales management app with multi-outlet support and role
 ## Features
 
 - Role-based auth (JWT): `super_admin`, `admin`, `manager`, `user`, `terminal`
+- Managers can create new outlet staff accounts with role `user` only
 - Multi-outlet management (create/update/delete outlets)
 - Products catalog (CRUD)
 - Per-outlet inventory tracking + low-stock alerts (dashboard)

@@ -188,6 +188,16 @@ const AccessRequest = mongoose.model('AccessRequest', accessRequestSchema);
 
 const generateSku = () => `SKU-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+const resolveManagerOutletId = async (userId: string) => {
+  const actingUser = await User.findById(userId).select('outletId');
+  const directOutletId = String((actingUser as any)?.outletId || '');
+  if (directOutletId) return directOutletId;
+
+  const managedOutlet = await Outlet.findOne({ managerId: userId }).select('_id');
+  const managedOutletId = String((managedOutlet as any)?._id || '');
+  return managedOutletId;
+};
+
 // --- Middleware ---
 
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -439,7 +449,8 @@ app.post('/api/access-requests/:id/reject', authenticateToken, async (req: any, 
 // Users
 app.get('/api/users', authenticateToken, async (req: any, res: any) => {
   const role = req.user?.role;
-  if (!['super_admin', 'admin'].includes(role)) {
+  const userId = String(req.user?.id || '');
+  if (!['super_admin', 'admin', 'manager'].includes(role)) {
     return res.status(403).json({ message: 'Unauthorized to view users' });
   }
 
@@ -450,43 +461,77 @@ app.get('/api/users', authenticateToken, async (req: any, res: any) => {
     filter.role = { $in: ['manager', 'user'] };
   }
 
+  // Managers can only see users assigned to their outlet
+  if (role === 'manager') {
+    const outletId = await resolveManagerOutletId(userId);
+    if (!outletId) {
+      return res.status(400).json({ message: 'Manager has no outlet assignment' });
+    }
+    filter.outletId = outletId;
+    filter.role = 'user';
+  }
+
   const users = await User.find(filter, '-password');
   res.json(users.map(u => ({ uid: u._id, email: u.email, role: u.role, displayName: u.displayName, outletId: u.outletId })));
 });
 
 app.post('/api/users', authenticateToken, async (req: any, res) => {
   try {
-    const { email, password, role, displayName, outletId } = req.body;
-    const creatorRole = req.user.role;
+    const { email, password, role, displayName, outletId } = req.body || {};
+    const creatorRole = String(req.user?.role || '');
+    const creatorId = String(req.user?.id || '');
+
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) return res.status(400).json({ message: 'Email is required' });
+    if (!password || String(password).length < 6) {
+      return res.status(400).json({ message: 'Password is required (min 6 chars)' });
+    }
+
+    let targetRole = String(role || 'user');
+    let targetOutletId = typeof outletId === 'string' ? outletId : '';
+
+    if (creatorRole === 'manager') {
+      // Managers can only create outlet users (role = user) for their own outlet
+      targetRole = 'user';
+      targetOutletId = await resolveManagerOutletId(creatorId);
+      if (!targetOutletId) {
+        return res.status(400).json({ message: 'Manager has no outlet assignment' });
+      }
+    }
 
     // Hierarchical validation
     if (creatorRole === 'super_admin') {
       // Super admin can create any role
     } else if (creatorRole === 'admin') {
       // Admin can only create manager, user, terminal
-      if (['super_admin', 'admin'].includes(role)) {
+      if (['super_admin', 'admin'].includes(targetRole)) {
         return res.status(403).json({ message: 'Admins cannot create super admins or other admins' });
+      }
+    } else if (creatorRole === 'manager') {
+      // Managers can only create users
+      if (targetRole !== 'user') {
+        return res.status(403).json({ message: 'Managers can only create users with role user' });
       }
     } else {
       return res.status(403).json({ message: 'Unauthorized to create users' });
     }
 
     // Only super_admin can create an admin user
-    if (role === 'admin' && creatorRole !== 'super_admin') {
+    if (targetRole === 'admin' && creatorRole !== 'super_admin') {
       return res.status(403).json({ message: 'Only super admins can create admins' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) return res.status(400).json({ message: 'User already exists' });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(String(password), 10);
     const user = new User({
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
-      role,
-      displayName: displayName || email.split('@')[0],
-      outletId,
-      createdBy: String(req.user.id)
+      role: targetRole,
+      displayName: (displayName && String(displayName).trim()) || normalizedEmail.split('@')[0],
+      outletId: targetOutletId || undefined,
+      createdBy: creatorId
     });
 
     await user.save();

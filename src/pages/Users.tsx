@@ -14,12 +14,18 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 const Users: React.FC = () => {
-  const { user: currentUser, isSuperAdmin, isAdmin } = useAuth();
+  const { user: currentUser, profile, isSuperAdmin, isAdmin, isManager } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [outlets, setOutlets] = useState<Outlet[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const isManagerOnly = profile?.role === 'manager';
+
+  const getDefaultOutletId = () => {
+    if (!isManagerOnly) return '';
+    return profile?.outletId || outlets[0]?.id || '';
+  };
 
   const [formData, setFormData] = useState({
     email: '',
@@ -41,6 +47,7 @@ const Users: React.FC = () => {
   const getAvailableRoles = () => {
     if (isSuperAdmin) return ['super_admin', 'admin', 'manager', 'user'] as UserRole[];
     if (isAdmin) return ['manager', 'user'] as UserRole[];
+    if (isManagerOnly) return ['user'] as UserRole[];
     return [] as UserRole[];
   };
 
@@ -80,14 +87,15 @@ const Users: React.FC = () => {
         });
       } else {
         // Create
+        const createData = isManagerOnly ? { ...formData, role: 'user' as UserRole, outletId: getDefaultOutletId() } : formData;
         await apiFetch('/api/users', {
           method: 'POST',
-          body: JSON.stringify(formData)
+          body: JSON.stringify(createData)
         });
       }
       setIsModalOpen(false);
       setEditingUser(null);
-      setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: '' });
+      setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: getDefaultOutletId() });
       fetchData();
     } catch (err) {
       console.error('Error saving user:', err);
@@ -103,11 +111,11 @@ const Users: React.FC = () => {
           <h1 className="app-h1">User Management</h1>
           <p className="app-subtitle">Manage user roles and outlet assignments across the enterprise.</p>
         </div>
-        {(isSuperAdmin || isAdmin) && (
+        {isManager && (
           <button
             onClick={() => {
               setEditingUser(null);
-              setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: '' });
+              setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: getDefaultOutletId() });
               setIsModalOpen(true);
             }}
             className="app-btn-primary"
@@ -279,23 +287,29 @@ const Users: React.FC = () => {
 
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-gray-700">System Role</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {availableRoles.map((role) => (
-                        <button
-                          key={role}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, role })}
-                          className={cn(
-                            "px-4 py-3 rounded-xl text-sm font-bold transition-all border-2",
-                            formData.role === role 
-                              ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100" 
-                              : "bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100"
-                          )}
-                        >
-                          {role.replace('_', ' ').toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
+                    {isManagerOnly ? (
+                      <div className="px-4 py-3 rounded-xl text-sm font-bold border-2 bg-gray-50 border-transparent text-gray-600">
+                        USER (fixed for managers)
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        {availableRoles.map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, role })}
+                            className={cn(
+                              "px-4 py-3 rounded-xl text-sm font-bold transition-all border-2",
+                              formData.role === role
+                                ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100"
+                                : "bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100"
+                            )}
+                          >
+                            {role.replace('_', ' ').toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -304,8 +318,9 @@ const Users: React.FC = () => {
                       className="app-select w-full"
                       value={formData.outletId}
                       onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
+                      disabled={isManagerOnly}
                     >
-                      <option value="">No Outlet Assignment</option>
+                      {!isManagerOnly && <option value="">No Outlet Assignment</option>}
                       {outlets.map(o => (
                         <option key={o.id} value={o.id}>{o.name}</option>
                       ))}

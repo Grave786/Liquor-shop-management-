@@ -6,6 +6,22 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  --app-zoom: 1;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --app-zoom: 0.8;
+  }
+}
+
+@supports (zoom: 1) {
+  html {
+    zoom: var(--app-zoom);
+  }
+}
+
 html[data-theme='dark'] {
   --app-accent: #7c3aed;
   --app-accent-hover: #6d28d9;

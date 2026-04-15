@@ -44,7 +44,7 @@ const Layout: React.FC = () => {
     { name: 'Sales', path: '/app/sales', icon: ShoppingCart, show: true },
     { name: 'Stock Transfer', path: '/app/transfers', icon: ArrowLeftRight, show: isManager },
     { name: 'Outlets', path: '/app/outlets', icon: Store, show: isManager },
-    { name: 'Users', path: '/app/users', icon: Users, show: isAdmin },
+    { name: 'Users', path: '/app/users', icon: Users, show: isManager },
     { name: 'Access Requests', path: '/app/access-requests', icon: UserCheck, show: isSuperAdmin },
   ];
 
