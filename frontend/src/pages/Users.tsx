@@ -1,0 +1,489 @@
+import React, { useEffect, useState } from 'react';
+import { apiFetch } from '../lib/api';
+import { useAuth } from '../AuthContext';
+import { UserProfile, Outlet, UserRole } from '../types';
+import { 
+  Users as UsersIcon, 
+  Shield, 
+  Store, 
+  Mail, 
+  Edit2, 
+  CheckCircle2,
+  X
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+const Users: React.FC = () => {
+  const { user: currentUser, profile, isSuperAdmin, isAdmin, isManager } = useAuth();
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const isManagerOnly = profile?.role === 'manager';
+
+  const getDefaultOutletId = () => {
+    if (!isManagerOnly) return '';
+    return profile?.outletId || outlets[0]?.id || '';
+  };
+
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    displayName: '',
+    role: 'user' as UserRole,
+    outletId: ''
+  });
+
+  const canManageUser = (targetUser: UserProfile) => {
+    if (isSuperAdmin) return true;
+    if (isAdmin) {
+      // Admins cannot manage super_admin or other admins
+      return !['super_admin', 'admin'].includes(targetUser.role);
+    }
+    return false;
+  };
+
+  const getAvailableRoles = () => {
+    if (isSuperAdmin) return ['super_admin', 'admin', 'manager', 'user'] as UserRole[];
+    if (isAdmin) return ['manager', 'user'] as UserRole[];
+    if (isManagerOnly) return ['user'] as UserRole[];
+    return [] as UserRole[];
+  };
+
+  const fetchData = async () => {
+    try {
+      const [userRes, outRes] = await Promise.all([
+        apiFetch('/api/users'),
+        apiFetch('/api/outlets'),
+      ]);
+
+      if (userRes.ok) setUsers(await userRes.json());
+      if (outRes.ok) setOutlets(await outRes.json());
+    } catch (err) {
+      console.error('Error fetching users data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      if (editingUser) {
+        // Update
+        const updateData: any = { role: formData.role, outletId: formData.outletId };
+        if (formData.password) updateData.password = formData.password;
+        if (formData.displayName) updateData.displayName = formData.displayName;
+
+        await apiFetch(`/api/users/${editingUser.uid}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updateData)
+        });
+      } else {
+        // Create
+        const createData = isManagerOnly ? { ...formData, role: 'user' as UserRole, outletId: getDefaultOutletId() } : formData;
+        await apiFetch('/api/users', {
+          method: 'POST',
+          body: JSON.stringify(createData)
+        });
+      }
+      setIsModalOpen(false);
+      setEditingUser(null);
+      setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: getDefaultOutletId() });
+      fetchData();
+    } catch (err) {
+      console.error('Error saving user:', err);
+    }
+  };
+
+  const availableRoles = getAvailableRoles();
+
+  return (
+    <div className="space-y-8">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="app-h1">User Management</h1>
+          <p className="app-subtitle">Manage user roles and outlet assignments across the enterprise.</p>
+        </div>
+        {isManager && (
+          <button
+            onClick={() => {
+              setEditingUser(null);
+              setFormData({ email: '', password: '', displayName: '', role: 'user', outletId: getDefaultOutletId() });
+              setIsModalOpen(true);
+            }}
+            className="app-btn-primary"
+          >
+            <UsersIcon size={20} />
+            Add New User
+          </button>
+        )}
+      </header>
+
+      <div className="app-card">
+        <div className="overflow-x-auto">
+          <table className="app-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Outlet Assignment</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => {
+                const outlet = outlets.find(o => o.id === user.outletId);
+                return (
+                  <tr key={user.uid} className="group">
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+                          {user.displayName?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{user.displayName || 'Unnamed User'}</p>
+                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                            <Mail size={12} /> {user.email}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                        user.role === 'super_admin' ? "bg-purple-50 text-purple-600" :
+                        user.role === 'admin' ? "bg-blue-50 text-blue-600" :
+                        user.role === 'manager' ? "bg-amber-50 text-amber-600" :
+                        "bg-gray-50 text-gray-600"
+                      )}>
+                        <Shield size={12} />
+                        {user.role.replace('_', ' ')}
+                      </div>
+                    </td>
+                    <td>
+                      {outlet ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                          <Store size={14} className="text-blue-500" />
+                          {outlet.name}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">No outlet assigned</span>
+                      )}
+                    </td>
+                    <td className="text-right">
+                      {canManageUser(user) && user.uid !== currentUser?.id && (
+                        <button
+                          onClick={() => {
+                            setEditingUser(user);
+                            setFormData({ 
+                              email: user.email, 
+                              password: '', 
+                              displayName: user.displayName || '', 
+                              role: user.role, 
+                              outletId: user.outletId || '' 
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          className="app-btn-icon hover:text-blue-600 hover:bg-blue-50"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {editingUser ? 'Edit User Access' : 'Create New User'}
+                  </h2>
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                {editingUser && (
+                  <div className="mb-8 p-4 bg-blue-50 rounded-2xl flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-600 font-bold text-lg">
+                      {editingUser?.displayName?.charAt(0) || editingUser?.email.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">{editingUser?.displayName}</p>
+                      <p className="text-sm text-gray-500">{editingUser?.email}</p>
+                    </div>
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveUser} className="space-y-6">
+                  {!editingUser && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700">Email Address</label>
+                        <input
+                          type="email"
+                          required
+                          className="app-input"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="user@example.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700">Display Name</label>
+                        <input
+                          type="text"
+                          className="app-input"
+                          value={formData.displayName}
+                          onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                          placeholder="John Doe"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">
+                      {editingUser ? 'New Password (leave blank to keep current)' : 'Password'}
+                    </label>
+                    <input
+                      type="password"
+                      required={!editingUser}
+                      className="app-input"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="••••••••"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">System Role</label>
+                    {isManagerOnly ? (
+                      <div className="px-4 py-3 rounded-xl text-sm font-bold border-2 bg-gray-50 border-transparent text-gray-600">
+                        USER (fixed for managers)
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        {availableRoles.map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, role })}
+                            className={cn(
+                              "px-4 py-3 rounded-xl text-sm font-bold transition-all border-2",
+                              formData.role === role
+                                ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100"
+                                : "bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100"
+                            )}
+                          >
+                            {role.replace('_', ' ').toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Outlet Assignment</label>
+                    <select
+                      className="app-select w-full"
+                      value={formData.outletId}
+                      onChange={(e) => setFormData({ ...formData, outletId: e.target.value })}
+                      disabled={isManagerOnly}
+                    >
+                      {!isManagerOnly && <option value="">No Outlet Assignment</option>}
+                      {outlets.map(o => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="pt-4 flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="flex-1 app-btn-secondary-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 app-btn-primary-lg text-sm flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 size={20} />
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+
+      {/*
+        {isApproveModalOpen && approvingRequest && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsApproveModalOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Approve Access</h2>
+                  <button
+                    onClick={() => setIsApproveModalOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="mb-6 p-4 bg-blue-50 rounded-2xl">
+                  <p className="text-sm font-bold text-gray-900">{approvingRequest.fullName}</p>
+                  <p className="text-sm text-gray-600">{approvingRequest.email}</p>
+                  <p className="text-sm text-gray-600">
+                    {approvingRequest.phone} • {approvingRequest.country}
+                  </p>
+                  <p className="text-sm text-gray-600">{approvingRequest.businessName}</p>
+                </div>
+
+                <form onSubmit={approveRequest} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Display Name</label>
+                    <input
+                      className="app-input"
+                      value={approveForm.displayName}
+                      onChange={(e) => setApproveForm((s) => ({ ...s, displayName: e.target.value }))}
+                      placeholder="User display name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Password (share with user)</label>
+                    <div className="flex gap-2">
+                      <input
+                        required
+                        type="text"
+                        className="app-input flex-1"
+                        value={approveForm.password}
+                        onChange={(e) => setApproveForm((s) => ({ ...s, password: e.target.value }))}
+                        placeholder="Set a password"
+                      />
+                      <button
+                        type="button"
+                        onClick={generatePassword}
+                        className="app-btn-secondary px-4 py-3 text-sm shrink-0 whitespace-nowrap"
+                      >
+                        Generate
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 font-medium">User can login only after approval.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">System Role</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {availableRoles
+                        .filter((r) => r !== 'super_admin')
+                        .map((role) => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => setApproveForm((s) => ({ ...s, userRole: role }))}
+                            className={cn(
+                              "px-4 py-3 rounded-xl text-sm font-bold transition-all border-2",
+                              approveForm.userRole === role
+                                ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100"
+                                : "bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100"
+                            )}
+                          >
+                            {role.replace('_', ' ').toUpperCase()}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700">Outlet Assignment</label>
+                    <select
+                      className="app-select w-full"
+                      value={approveForm.outletId}
+                      onChange={(e) => setApproveForm((s) => ({ ...s, outletId: e.target.value }))}
+                    >
+                      <option value="">No Outlet Assignment</option>
+                      {outlets.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="pt-2 flex gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsApproveModalOpen(false)}
+                      className="flex-1 app-btn-secondary-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="flex-1 app-btn-primary-lg text-sm flex items-center justify-center gap-2">
+                      <CheckCircle2 size={20} />
+                      Approve & Create User
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      */}
+    </div>
+  );
+};
+
+export default Users;
+
+function cn(...inputs: any[]) {
+  return inputs.filter(Boolean).join(' ');
+}

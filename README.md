@@ -1,4 +1,4 @@
-# Inventory & Sales Pro (Liquor Shop Management)
+﻿# Inventory & Sales Pro (Liquor Shop Management)
 
 A full-stack inventory + sales management app with multi-outlet support and role-based access control.
 
@@ -14,8 +14,8 @@ A full-stack inventory + sales management app with multi-outlet support and role
 
 ## Tech Stack
 
-- Frontend: React + Vite + Tailwind CSS
-- Backend: Express (TypeScript) + Mongoose
+- Frontend: React + Vite + Tailwind CSS (`frontend/`)
+- Backend: Express (TypeScript) + Mongoose (`backend/`)
 - Database: MongoDB
 - Auth: JSON Web Tokens + bcrypt
 
@@ -26,41 +26,55 @@ A full-stack inventory + sales management app with multi-outlet support and role
 - Node.js 18+ (recommended)
 - A MongoDB database (local or Atlas)
 
-### Setup
+### Install
 
-1) Install dependencies:
-
-```bash
-npm install
-```
-
-2) Create your `.env` file:
+Install dependencies in both packages:
 
 ```bash
-copy .env.example .env
+npm --prefix backend install
+npm --prefix frontend install
 ```
 
-3) Update `.env` values (especially `MONGO_URI` and `JWT_SECRET`).
+### Environment Variables
 
-### Run (Dev)
-
-Starts the Express API and runs Vite in middleware mode on the same server.
-
-```bash
-npm run dev
-```
-
-Then open `http://localhost:3000`.
-
-## Environment Variables
-
-See `.env.example` for the full list.
+Backend env lives in `backend/.env` (copy from `backend/.env.example`).
 
 - `MONGO_URI`: Mongo connection string
 - `JWT_SECRET`: secret used to sign auth tokens
-- `PORT`: server port (default `3000`)
-- `NODE_ENV`: `development` or `production`
-- `GEMINI_API_KEY`: optional (wired in `vite.config.ts`, not required unless you add Gemini features)
+- `PORT`: API port (default `3000`)
+
+Frontend env (optional) lives in `frontend/.env` (copy from `frontend/.env.example`).
+
+- `VITE_API_URL`: backend base URL (e.g. `https://api.example.com`). In dev you can omit it because Vite proxies `/api` to `http://localhost:3000`.
+
+## Run (Dev)
+
+In two terminals:
+
+```bash
+npm --prefix backend run dev
+npm --prefix frontend run dev
+```
+
+- API: `http://localhost:3000`
+- UI: `http://localhost:5173`
+
+Or from the repo root (runs both):
+
+```bash
+npm install
+npm run dev
+```
+
+## Build (Prod)
+
+```bash
+npm --prefix backend run build
+npm --prefix frontend run build
+```
+
+- Backend output: `backend/dist/`
+- Frontend output: `frontend/dist/`
 
 ## Default Roles / First Admin
 
@@ -99,25 +113,7 @@ All routes are under `/api` and (except auth) require `Authorization: Bearer <to
   - `POST /api/transfers`
   - `PATCH /api/transfers/:id`
 
-## Scripts
-
-- `npm run dev`: start the app (API + UI)
-- `npm run build`: build the frontend to `dist/`
-- `npm run preview`: preview the frontend build
-- `npm run lint`: TypeScript typecheck
-- `npm run clean`: delete `dist/`
-
-## Verification (Quick)
-
-Run these as two separate commands:
-
-```bash
-npm run lint
-npm run build
-```
-
-If you hit a Windows `spawn EPERM` error from `esbuild` during `vite` builds, it can be related to file locking/AV/OneDrive sync. Re-try the build, and consider moving the repo out of a synced folder.
-
 ## Notes
 
-- Don’t commit `.env` files. This repo’s `.gitignore` is configured to ignore `.env*` and keep `.env.example`.
+- Don’t commit `.env` files.
+- If you hit a Windows `spawn EPERM` error from `esbuild` during `vite` builds, it can be related to file locking/AV/OneDrive sync. Re-try the build or move the repo out of a synced folder.

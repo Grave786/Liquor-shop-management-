@@ -1,0 +1,44 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './AuthContext';
+import { ThemeProvider } from './ThemeContext';
+import { AuthGuard } from './components/AuthGuard';
+import Layout from './components/Layout';
+import Landing from './pages/Landing';
+import LoginRoute from './pages/LoginRoute';
+import Dashboard from './pages/Dashboard';
+import Inventory from './pages/Inventory';
+import Sales from './pages/Sales';
+import Outlets from './pages/Outlets';
+import Users from './pages/Users';
+import AccessRequests from './pages/AccessRequests';
+import StockTransfers from './pages/StockTransfer';
+import Transactions from './pages/Transactions';
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<LoginRoute />} />
+            
+            <Route path="/app" element={<AuthGuard><Layout /></AuthGuard>}>
+              <Route index element={<Dashboard />} />
+              <Route path="inventory" element={<Inventory />} />
+              <Route path="sales" element={<Sales />} />
+              <Route path="transactions" element={<Transactions />} />
+              <Route path="transfers" element={<AuthGuard requiredRole="manager"><StockTransfers /></AuthGuard>} />
+              <Route path="outlets" element={<AuthGuard requiredRole="manager"><Outlets /></AuthGuard>} />
+              <Route path="users" element={<AuthGuard requiredRole="manager"><Users /></AuthGuard>} />
+              <Route path="access-requests" element={<AuthGuard requiredRole="super_admin"><AccessRequests /></AuthGuard>} />
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
