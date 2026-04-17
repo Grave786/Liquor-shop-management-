@@ -31,6 +31,7 @@ const Landing: React.FC = () => {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>('');
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -100,6 +101,17 @@ const Landing: React.FC = () => {
 
   const closeMobile = () => setMobileOpen(false);
 
+  const handleNavClick = (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!href.startsWith('#')) return;
+    const id = href.slice(1);
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    closeMobile();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    navigate({ pathname: '/', search: '', hash: href }, { replace: true, state: location.state });
+  };
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem('access_request_last');
@@ -116,6 +128,36 @@ const Landing: React.FC = () => {
   useEffect(() => {
     setLoginOpen(loginRequested);
   }, [loginRequested]);
+
+  useEffect(() => {
+    if (location.hash && navItems.some((it) => it.href === location.hash)) {
+      setActiveSection(location.hash);
+    }
+  }, [location.hash, navItems]);
+
+  useEffect(() => {
+    const ids = navItems.map((it) => it.href.slice(1));
+    const nodes = ids
+      .map((id) => document.getElementById(id))
+      .filter(Boolean) as HTMLElement[];
+
+    if (nodes.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length === 0) return;
+        const id = (visible[0].target as HTMLElement).id;
+        if (id) setActiveSection(`#${id}`);
+      },
+      { rootMargin: '-18% 0px -70% 0px', threshold: [0, 0.05, 0.1] },
+    );
+
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [navItems]);
 
   useEffect(() => {
     if (user && loginRequested) {
@@ -249,7 +291,14 @@ const Landing: React.FC = () => {
               <a
                 key={it.href}
                 href={it.href}
-                className="rounded-xl px-3 py-2 text-sm font-bold text-[color:var(--app-muted)] transition-colors hover:bg-white/5 hover:text-[color:var(--app-fg)]"
+                onClick={handleNavClick(it.href)}
+                aria-current={activeSection === it.href ? 'page' : undefined}
+                className={[
+                  'rounded-xl px-3 py-2 text-sm font-bold transition-colors',
+                  activeSection === it.href
+                    ? 'bg-white/10 text-[color:var(--app-fg)]'
+                    : 'text-[color:var(--app-muted)] hover:bg-white/5 hover:text-[color:var(--app-fg)]',
+                ].join(' ')}
               >
                 {it.label}
               </a>
@@ -320,8 +369,12 @@ const Landing: React.FC = () => {
                     <a
                       key={it.href}
                       href={it.href}
-                      onClick={closeMobile}
-                      className="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-bold text-[color:var(--app-fg)] hover:bg-white/5"
+                      onClick={handleNavClick(it.href)}
+                      aria-current={activeSection === it.href ? 'page' : undefined}
+                      className={[
+                        'flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-bold hover:bg-white/5',
+                        activeSection === it.href ? 'bg-white/5 text-[color:var(--app-fg)]' : 'text-[color:var(--app-fg)]',
+                      ].join(' ')}
                     >
                       {it.label}
                       <ChevronRight size={16} className="opacity-70" />
@@ -341,7 +394,7 @@ const Landing: React.FC = () => {
                       <ArrowRight size={18} />
                     </button>
                   )}
-                  <a href="#features" onClick={closeMobile} className="app-btn-secondary-lg">
+                  <a href="#features" onClick={handleNavClick('#features')} className="app-btn-secondary-lg">
                     Explore features
                     <Sparkles size={18} />
                   </a>
@@ -627,15 +680,29 @@ const Landing: React.FC = () => {
                     <ArrowRight size={18} />
                   </button>
                 )}
-                <a href="#modules" className="app-btn-secondary">
+                <a href="#modules" onClick={handleNavClick('#modules')} className="app-btn-secondary">
                   See modules
                   <ChevronRight size={18} />
                 </a>
+                {!user && (
+                  <button type="button" onClick={openAccessModal} className="app-btn-secondary">
+                    Request Access
+                    <ArrowUpRight size={18} />
+                  </button>
+                )}
               </div>
 
               {!user && (
                 <p className="mt-3 text-xs font-bold text-[color:var(--app-muted)]">
-                  For new account creation, contact admin: <span className="text-[color:var(--app-fg)]">Requin Solution Pvt Ltd</span>
+                  For new account creation, contact admin:{' '}
+                  <span className="text-[color:var(--app-fg)]">Requin Solution Pvt Ltd</span> •{' '}
+                  <button
+                    type="button"
+                    onClick={openAccessModal}
+                    className="font-black text-[color:var(--app-accent)] hover:underline"
+                  >
+                    Request access
+                  </button>
                 </p>
               )}
 
@@ -737,6 +804,74 @@ const Landing: React.FC = () => {
                   <span key={t} className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                     {t}
                   </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Highlights */}
+        <section className="border-t border-white/10">
+          <div className="w-full px-4 py-14 sm:px-6 lg:px-12 2xl:px-20">
+            <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+              <div className="lg:col-span-5">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                  Built for day-to-day ops
+                </p>
+                <h2 className="mt-2 text-3xl font-black tracking-tight">Less manual work. More control.</h2>
+                <p className="mt-3 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
+                  Keep inventory accurate across outlets, reduce sale-time errors, and keep admins in control with
+                  role-based permissions.
+                </p>
+
+                <div className="mt-6 flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.22em] text-[color:var(--app-muted)]">
+                  {['Per-outlet stock', 'Transfers workflow', 'Audit-friendly logs', 'Fast search'].map((t) => (
+                    <span key={t} className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="lg:col-span-7 grid gap-4 sm:grid-cols-2">
+                {[
+                  {
+                    icon: Boxes,
+                    title: 'Inventory clarity',
+                    desc: 'Track quantities and movements per outlet with a clean catalog and stock views.',
+                  },
+                  {
+                    icon: BarChart3,
+                    title: 'Safer selling',
+                    desc: 'Sales update inventory and keep the numbers aligned with your day-to-day operations.',
+                  },
+                  {
+                    icon: ShieldCheck,
+                    title: 'Controlled access',
+                    desc: 'Roles and permissions keep sensitive actions limited to the right users.',
+                  },
+                  {
+                    icon: FileBarChart2,
+                    title: 'Reports & visibility',
+                    desc: 'Review performance using dashboards, transactions, and sales summaries.',
+                  },
+                ].map((card, idx) => (
+                  <motion.div
+                    key={card.title}
+                    initial={{ opacity: 0, y: 10 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.25 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="rounded-3xl border border-white/10 bg-white/5 p-5"
+                  >
+                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--app-accent-soft-2)] text-[color:var(--app-accent)]">
+                      <card.icon size={20} />
+                    </div>
+                    <p className="mt-4 text-base font-black">{card.title}</p>
+                    <p className="mt-1 text-sm font-semibold leading-relaxed text-[color:var(--app-muted)]">
+                      {card.desc}
+                    </p>
+                  </motion.div>
                 ))}
               </div>
             </div>

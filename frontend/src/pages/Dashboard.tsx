@@ -41,6 +41,11 @@ const Dashboard: React.FC = () => {
   const [customDay, setCustomDay] = useState(() => format(new Date(), 'yyyy-MM-dd'));
 
   useEffect(() => {
+    if (!profile) return;
+
+    const controller = new AbortController();
+    let didCancel = false;
+
     const fetchData = async () => {
       try {
         const effectiveOutletId = isAdmin ? outletIdParam : (profile?.outletId || '');
@@ -52,35 +57,41 @@ const Dashboard: React.FC = () => {
           : '/api/inventory';
 
         const [salesRes, invRes, prodRes, outRes] = await Promise.all([
-          apiFetch(salesUrl),
-          apiFetch(invUrl),
-          apiFetch('/api/products'),
-          isAdmin ? apiFetch('/api/outlets') : Promise.resolve(null as any),
+          apiFetch(salesUrl, { signal: controller.signal }),
+          apiFetch(invUrl, { signal: controller.signal }),
+          apiFetch('/api/products', { signal: controller.signal }),
+          isAdmin ? apiFetch('/api/outlets', { signal: controller.signal }) : Promise.resolve(null as any),
         ]);
+
+        if (didCancel) return;
 
         if (salesRes.ok) setSales(await salesRes.json());
         if (invRes.ok) setInventory(await invRes.json());
         if (prodRes.ok) setProducts(await prodRes.json());
         if (outRes?.ok) setOutlets(await outRes.json());
       } catch (err) {
+        if (controller.signal.aborted) return;
         console.error('Error fetching dashboard data:', err);
       } finally {
-        setLoading(false);
+        if (!didCancel) setLoading(false);
       }
     };
 
-    if (profile) {
-      setLoading(true);
-      fetchData();
-    }
+    setLoading(true);
+    fetchData();
+
+    return () => {
+      didCancel = true;
+      controller.abort();
+    };
   }, [isAdmin, outletIdParam, profile]);
 
-  const now = useMemo(() => new Date(), [rangePreset, customDay, sales.length]);
+  const now = useMemo(() => new Date(), [rangePreset]);
 
   const { currentStart, currentEnd, prevStart, prevEnd, rangeTitle, rangeDays } = useMemo(() => {
     if (rangePreset === 'custom') {
       const parsed = parseISO(customDay);
-      const selected = Number.isNaN(parsed.getTime()) ? now : parsed;
+      const selected = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
       const start = startOfDay(selected);
       const end = endOfDay(selected);
       const prev = subDays(selected, 1);
@@ -110,31 +121,44 @@ const Dashboard: React.FC = () => {
     };
   }, [customDay, now, rangePreset]);
 
-  const salesInRange = useMemo(() => {
+  const salesWithTs = useMemo(() => {
     return sales
-      .map((sale) => ({ sale, ts: new Date(sale.timestamp) }))
-      .filter(({ ts }) => !Number.isNaN(ts.getTime()) && isWithinInterval(ts, { start: currentStart, end: currentEnd }))
+      .map((sale) => {
+        const ts = new Date(sale.timestamp);
+        if (Number.isNaN(ts.getTime())) return null;
+        return { sale, ts, amount: Number(sale.totalAmount || 0) };
+      })
+      .filter(Boolean) as Array<{ sale: Sale; ts: Date; amount: number }>;
+  }, [sales]);
+
+  const salesInRange = useMemo(() => {
+    return salesWithTs.filter(({ ts }) => isWithinInterval(ts, { start: currentStart, end: currentEnd }));
+  }, [currentEnd, currentStart, salesWithTs]);
+
+  const prevSalesInRange = useMemo(() => {
+    return salesWithTs.filter(({ ts }) => isWithinInterval(ts, { start: prevStart, end: prevEnd }));
+  }, [prevEnd, prevStart, salesWithTs]);
+
+  const recentSales = useMemo(() => {
+    return salesInRange
+      .slice()
       .sort((a, b) => b.ts.getTime() - a.ts.getTime())
-      .map(({ sale }) => sale);
-  }, [currentEnd, currentStart, sales]);
+      .slice(0, 5);
+  }, [salesInRange]);
 
   const salesByDay = useMemo(() => {
     const map = new Map<string, number>();
-    for (const sale of salesInRange) {
-      const ts = new Date(sale.timestamp);
-      if (Number.isNaN(ts.getTime())) continue;
-      const key = format(ts, 'yyyy-MM-dd');
-      map.set(key, (map.get(key) || 0) + (sale.totalAmount || 0));
+    for (const entry of salesInRange) {
+      const key = format(entry.ts, 'yyyy-MM-dd');
+      map.set(key, (map.get(key) || 0) + entry.amount);
     }
     return map;
   }, [salesInRange]);
 
   const salesByHour = useMemo(() => {
     const map = new Map<number, number>();
-    for (const sale of salesInRange) {
-      const ts = new Date(sale.timestamp);
-      if (Number.isNaN(ts.getTime())) continue;
-      map.set(ts.getHours(), (map.get(ts.getHours()) || 0) + (sale.totalAmount || 0));
+    for (const entry of salesInRange) {
+      map.set(entry.ts.getHours(), (map.get(entry.ts.getHours()) || 0) + entry.amount);
     }
     return map;
   }, [salesInRange]);
@@ -164,23 +188,15 @@ const Dashboard: React.FC = () => {
   const totalProducts = products.length;
 
   const { totalSalesAmount, revenueTrend, revenueIsUp } = useMemo(() => {
-    let currentRevenue = 0;
-    let prevRevenue = 0;
-
-    for (const sale of sales) {
-      const ts = new Date(sale.timestamp);
-      if (Number.isNaN(ts.getTime())) continue;
-
-      if (isWithinInterval(ts, { start: currentStart, end: currentEnd })) currentRevenue += sale.totalAmount || 0;
-      else if (isWithinInterval(ts, { start: prevStart, end: prevEnd })) prevRevenue += sale.totalAmount || 0;
-    }
+    const currentRevenue = salesInRange.reduce((sum, entry) => sum + entry.amount, 0);
+    const prevRevenue = prevSalesInRange.reduce((sum, entry) => sum + entry.amount, 0);
 
     const pct = prevRevenue === 0 ? (currentRevenue > 0 ? 100 : 0) : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
     const isUp = pct >= 0;
     const label = `${isUp ? '+' : ''}${pct.toFixed(1)}%`;
 
     return { totalSalesAmount: currentRevenue, revenueTrend: label, revenueIsUp: isUp };
-  }, [currentEnd, currentStart, prevEnd, prevStart, sales]);
+  }, [prevSalesInRange, salesInRange]);
 
   const productPriceById = useMemo(() => {
     const map = new Map<string, number>();
@@ -188,37 +204,64 @@ const Dashboard: React.FC = () => {
     return map;
   }, [products]);
 
-  const stats = [
-    {
-      name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`,
-      value: `$${totalSalesAmount.toLocaleString()}`,
-      icon: DollarSign,
-      color: 'bg-green-500',
-      trend: revenueTrend,
-      isUp: revenueIsUp,
-    },
-    {
-      name: 'Inventory Value',
-      value: (() => {
-        const total = inventory.reduce((sum, item) => {
-          const price = productPriceById.get(item.productId) ?? 0;
-          return sum + (Number(item.quantity || 0) * Number(price || 0));
-        }, 0);
-        return `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      })(),
-      icon: Package,
-      color: 'bg-blue-600',
-      trend: '—',
-      isUp: true,
-    },
-    { name: 'Low Stock Alerts', value: lowStockCount.toString(), icon: AlertTriangle, color: 'bg-amber-500', trend: '—', isUp: false },
-    { name: 'Total Products', value: totalProducts.toString(), icon: TrendingUp, color: 'bg-slate-800', trend: '—', isUp: true },
-  ];
+  const inventoryValue = useMemo(() => {
+    return inventory.reduce((sum, item) => {
+      const price = productPriceById.get(item.productId) ?? 0;
+      return sum + Number(item.quantity || 0) * Number(price || 0);
+    }, 0);
+  }, [inventory, productPriceById]);
+
+  const stats = useMemo(() => {
+    return [
+      {
+        name: rangePreset === 'custom' ? `Revenue (${rangeTitle})` : `Revenue (Last ${rangeDays}d)`,
+        value: `$${totalSalesAmount.toLocaleString()}`,
+        icon: DollarSign,
+        color: 'bg-green-500',
+        trend: revenueTrend,
+        isUp: revenueIsUp,
+      },
+      {
+        name: 'Inventory Value',
+        value: `$${inventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        icon: Package,
+        color: 'bg-blue-600',
+        trend: '—',
+        isUp: true,
+      },
+      {
+        name: 'Low Stock Alerts',
+        value: lowStockCount.toString(),
+        icon: AlertTriangle,
+        color: 'bg-amber-500',
+        trend: '—',
+        isUp: false,
+      },
+      {
+        name: 'Total Products',
+        value: totalProducts.toString(),
+        icon: TrendingUp,
+        color: 'bg-slate-800',
+        trend: '—',
+        isUp: true,
+      },
+    ];
+  }, [
+    inventoryValue,
+    lowStockCount,
+    rangeDays,
+    rangePreset,
+    rangeTitle,
+    revenueIsUp,
+    revenueTrend,
+    totalProducts,
+    totalSalesAmount,
+  ]);
 
   const selectedOutletName = useMemo(() => {
     if (!isAdmin) return '';
     if (!outletIdParam) return 'All Outlets';
-    return outlets.find(o => o.id === outletIdParam)?.name || 'Selected Outlet';
+    return outlets.find((o) => o.id === outletIdParam)?.name || 'Selected Outlet';
   }, [isAdmin, outletIdParam, outlets]);
 
   if (loading) {
@@ -399,19 +442,19 @@ const Dashboard: React.FC = () => {
         <div className="app-card p-8 flex flex-col">
           <h3 className="text-lg font-bold mb-6">Recent Sales</h3>
           <div className="flex-1 space-y-6 overflow-y-auto pr-2">
-            {salesInRange.slice(0, 5).map((sale) => (
+            {recentSales.map(({ sale, ts, amount }) => (
               <div key={sale.id} className="flex items-center justify-between group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs">
-                    {sale.userId.slice(0, 2).toUpperCase()}
+                    {(sale.userId || 'U').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
                     <p className="text-sm font-bold">Sale #{sale.id.slice(-4)}</p>
-                    <p className="text-xs app-muted">{format(new Date(sale.timestamp), 'h:mm a')}</p>
+                    <p className="text-xs app-muted">{format(ts, 'h:mm a')}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold">${sale.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm font-bold">${Number(amount || 0).toFixed(2)}</p>
                   <p className="text-[10px] font-bold text-green-600 uppercase tracking-wider">Completed</p>
                 </div>
               </div>
