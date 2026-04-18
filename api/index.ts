@@ -1,4 +1,4 @@
-import { app } from '../server.ts';
+import { app } from '../server';
 
 function getPathFromUrl(req: any): string | null {
   try {
@@ -17,4 +17,3 @@ export default function handler(req: any, res: any) {
   req.url = `/api/${normalized}`.replace(/\/+$/, normalized ? '' : '/');
   return app(req, res);
 }
-

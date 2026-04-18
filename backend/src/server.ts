@@ -21,6 +21,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_here';
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 const normalizePhone = (value: string) => {
   const raw = String(value || '').trim();
   if (!raw) return '';

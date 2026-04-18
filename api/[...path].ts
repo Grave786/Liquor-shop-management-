@@ -1,4 +1,4 @@
-import { app } from '../server.ts';
+import { app } from '../server';
 
 function getPathFromQuery(req: any): string {
   const raw = req?.query?.path as unknown;
