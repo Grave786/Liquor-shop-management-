@@ -8,6 +8,7 @@ import {
   Store, 
   Mail, 
   Edit2, 
+  Trash2,
   CheckCircle2,
   X
 } from 'lucide-react';
@@ -102,6 +103,21 @@ const Users: React.FC = () => {
     }
   };
 
+  const handleDeleteUser = async (target: UserProfile) => {
+    if (!window.confirm(`Delete ${target.displayName || target.email}? This cannot be undone.`)) return;
+    try {
+      const res = await apiFetch(`/api/users/${encodeURIComponent(target.uid)}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || 'Failed to delete user');
+      }
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert((err as any)?.message || 'Error deleting user');
+    }
+  };
+
   const availableRoles = getAvailableRoles();
 
   return (
@@ -179,22 +195,34 @@ const Users: React.FC = () => {
                     </td>
                     <td className="text-right">
                       {canManageUser(user) && user.uid !== currentUser?.id && (
-                        <button
-                          onClick={() => {
-                            setEditingUser(user);
-                            setFormData({ 
-                              email: user.email, 
-                              password: '', 
-                              displayName: user.displayName || '', 
-                              role: user.role, 
-                              outletId: user.outletId || '' 
-                            });
-                            setIsModalOpen(true);
-                          }}
-                          className="app-btn-icon hover:text-blue-600 hover:bg-blue-50"
-                        >
-                          <Edit2 size={18} />
-                        </button>
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingUser(user);
+                              setFormData({ 
+                                email: user.email, 
+                                password: '', 
+                                displayName: user.displayName || '', 
+                                role: user.role, 
+                                outletId: user.outletId || '' 
+                              });
+                              setIsModalOpen(true);
+                            }}
+                            className="app-btn-icon hover:text-blue-600 hover:bg-blue-50"
+                            aria-label="Edit user"
+                            title="Edit"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user)}
+                            className="app-btn-icon hover:text-red-600 hover:bg-red-50"
+                            aria-label="Delete user"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

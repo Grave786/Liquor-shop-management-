@@ -594,6 +594,43 @@ app.patch('/api/users/:id', authenticateToken, async (req: any, res) => {
   }
 });
 
+app.delete('/api/users/:id', authenticateToken, async (req: any, res) => {
+  try {
+    const actorRole = String(req.user?.role || '');
+    const actorId = String(req.user?.id || '');
+    const targetId = String(req.params.id || '');
+
+    if (!['super_admin', 'admin'].includes(actorRole)) {
+      return res.status(403).json({ message: 'Unauthorized to delete users' });
+    }
+
+    if (!targetId) {
+      return res.status(400).json({ message: 'User id is required' });
+    }
+
+    if (targetId === actorId) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
+    const targetUser = await User.findById(targetId);
+    if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+    if (actorRole === 'admin') {
+      if (String((targetUser as any).createdBy || '') !== actorId) {
+        return res.status(403).json({ message: 'Admins can only delete users they created' });
+      }
+      if (['super_admin', 'admin'].includes(String((targetUser as any).role || ''))) {
+        return res.status(403).json({ message: 'Admins cannot delete super admins or other admins' });
+      }
+    }
+
+    await User.findByIdAndDelete(targetId);
+    return res.status(204).send();
+  } catch (err) {
+    return res.status(500).json({ message: 'Error deleting user' });
+  }
+});
+
 // Outlets
 app.get('/api/outlets', authenticateToken, async (req, res) => {
   try {
