@@ -1,33 +1,31 @@
 import { app } from '../server';
 
-function getPathFromQuery(req: any): string {
+function getPathFromRequest(req: any): string {
   const raw = req?.query?.path as unknown;
   if (Array.isArray(raw)) return raw.join('/');
-  if (raw == null) return '';
-  return String(raw);
+  if (typeof raw === 'string') return raw;
+
+  try {
+    const url = new URL(req?.url || '/', 'http://localhost');
+    // If Vercel routing didn’t populate `req.query.path`, fall back to the URL pathname.
+    // We expect to be mounted under `/api/*`.
+    return url.pathname.replace(/^\/api\/?/, '');
+  } catch {
+    return '';
+  }
 }
 
 function buildQueryString(req: any): string {
-  const query = req?.query || {};
-  const params = new URLSearchParams();
-
-  for (const key of Object.keys(query)) {
-    if (key === 'path') continue;
-    const value = query[key];
-    if (value == null) continue;
-    if (Array.isArray(value)) {
-      for (const item of value) params.append(key, String(item));
-    } else {
-      params.append(key, String(value));
-    }
+  try {
+    const url = new URL(req?.url || '/', 'http://localhost');
+    return url.search || '';
+  } catch {
+    return '';
   }
-
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
 }
 
 export default function handler(req: any, res: any) {
-  const normalized = getPathFromQuery(req).replace(/^\/+/, '');
+  const normalized = getPathFromRequest(req).replace(/^\/+/, '');
   const base = normalized ? `/api/${normalized}` : '/api/';
   req.url = `${base}${buildQueryString(req)}`;
 
